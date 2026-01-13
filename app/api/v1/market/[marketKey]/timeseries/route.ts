@@ -81,37 +81,60 @@ export async function GET(
       });
     }
 
-    // Fallback: Calculate from Subgraph if DB is empty (slow path)
-    // This happens on first request or if sync hasn't run yet
-    console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
-    
-    const trendsData = await calculateMarketTrends(marketKey, window);
-    
-    if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
-      return NextResponse.json(
-        createErrorResponse(
-          ErrorCodes.UPSTREAM_ERROR,
-          "No timeseries data available"
-        ),
-        { status: 503 }
-      );
+    // For 1y window, don't try Subgraph fallback (too slow, 365 requests)
+    // Return empty array instead of error - component will show appropriate message
+    if (window === "1y") {
+      console.warn(`⚠️  No DB data for ${marketKey} (${window}). 1y data requires database sync.`);
+      return NextResponse.json({
+        data: [],
+        marketKey,
+        source: 'database',
+        message: '1y data is not available yet. Please run data sync.',
+      });
     }
 
-    return NextResponse.json({
-      data: trendsData.data,
-      marketKey,
-      source: 'subgraph',
-    });
+    // Fallback: Calculate from Subgraph if DB is empty (slow path)
+    // This happens on first request or if sync hasn't run yet
+    // Only for 30d and 6m windows (1y is too slow)
+    console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
+    
+    try {
+      const trendsData = await calculateMarketTrends(marketKey, window);
+      
+      if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
+        // Return empty array instead of error for better UX
+        return NextResponse.json({
+          data: [],
+          marketKey,
+          source: 'subgraph',
+          message: `No timeseries data available for ${window}`,
+        });
+      }
+
+      return NextResponse.json({
+        data: trendsData.data,
+        marketKey,
+        source: 'subgraph',
+      });
+    } catch (subgraphError) {
+      // If Subgraph fails, return empty array instead of error
+      console.error(`Subgraph fallback failed for ${marketKey} (${window}):`, subgraphError);
+      return NextResponse.json({
+        data: [],
+        marketKey,
+        source: 'subgraph',
+        message: `Failed to fetch data from Subgraph for ${window}`,
+      });
+    }
   } catch (error) {
     console.error(`Error fetching timeseries for ${marketKey}:`, error);
 
-    return NextResponse.json(
-      createErrorResponse(
-        ErrorCodes.UPSTREAM_ERROR,
-        "Failed to fetch timeseries data",
-        error instanceof Error ? error.message : String(error)
-      ),
-      { status: 503 }
-    );
+    // Return empty array instead of error for better UX
+    return NextResponse.json({
+      data: [],
+      marketKey,
+      source: 'error',
+      message: error instanceof Error ? error.message : "Failed to fetch timeseries data",
+    });
   }
 }

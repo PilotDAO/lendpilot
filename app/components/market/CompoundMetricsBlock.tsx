@@ -295,10 +295,25 @@ export function CompoundMetricsBlock({
             }
             throw new Error("Rate limit exceeded. Please wait a moment and try again.");
           }
-          throw new Error(`Failed to fetch trends data: ${response.statusText}`);
+          // For other errors, try to parse error response
+          try {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `Failed to fetch trends data: ${response.statusText}`);
+          } catch {
+            throw new Error(`Failed to fetch trends data: ${response.statusText}`);
+          }
         }
 
         const data = await response.json();
+        
+        // Check if data is empty
+        if (!data.data || data.data.length === 0) {
+          // Show appropriate message based on window
+          if (timeWindow === "1y") {
+            throw new Error("1 year data is not available yet. Historical data sync is in progress.");
+          }
+          throw new Error(`No data available for ${timeWindow} period.`);
+        }
         
         // Transform data array to MarketTrendData format
         const transformedData: MarketTrendData[] = (data.data || []).map((trend: any) => ({
@@ -433,13 +448,30 @@ export function CompoundMetricsBlock({
               </div>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center h-[280px] text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
-              <div className="text-center text-sm">{error}</div>
-              {trendsDataChart.length > 0 && (
-                <div className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  Showing cached data
-                </div>
-              )}
+            <div className="flex flex-col items-center justify-center h-[280px] bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div className="text-center">
+                {timeWindow === "1y" ? (
+                  <>
+                    <div className="text-amber-600 dark:text-amber-400 font-medium mb-2">
+                      📊 Historical data for 1 year is being prepared
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      This requires processing 365 days of data. Please check back later or use 30d or 6m views.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-red-600 dark:text-red-400 font-medium mb-2">
+                      ⚠️ {error}
+                    </div>
+                    {trendsDataChart.length > 0 && (
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Showing cached data
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             <>
