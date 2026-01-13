@@ -223,10 +223,24 @@ export function CompoundMetricsBlock({
       }
     : null;
 
+  // Use ref to track initial data to avoid unnecessary re-renders
+  const initialDataRef = useRef(initialTimeseriesData);
+  const currentTimeWindowRef = useRef(timeWindow);
+  
   useEffect(() => {
+    // Update ref when initialTimeseriesData changes
+    if (initialTimeseriesData.length > 0) {
+      initialDataRef.current = initialTimeseriesData;
+    }
+  }, [initialTimeseriesData.length]);
+
+  useEffect(() => {
+    // Update current timeWindow ref
+    currentTimeWindowRef.current = timeWindow;
+    
     // If we have initial data for 30d and user selects 30d, use it immediately
-    if (timeWindow === "30d" && initialTimeseriesData.length > 0) {
-      setTrendsDataChart(initialTimeseriesData);
+    if (timeWindow === "30d" && initialDataRef.current.length > 0) {
+      setTrendsDataChart(initialDataRef.current);
       setLoading(false);
       setIsUsingCache(false);
       return;
@@ -240,13 +254,16 @@ export function CompoundMetricsBlock({
       
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
+      
+      // Capture current timeWindow to check later
+      const requestedTimeWindow = timeWindow;
 
       setLoading(true);
       setError(null);
 
       // Try to load from cache first
       if (typeof window !== "undefined") {
-        const cacheKey = getCacheKey(marketKey, timeWindow);
+        const cacheKey = getCacheKey(marketKey, requestedTimeWindow);
         const cached = sessionStorage.getItem(cacheKey);
         
         if (cached) {
@@ -254,8 +271,8 @@ export function CompoundMetricsBlock({
             const cachedData: CachedData = JSON.parse(cached);
             const now = Date.now();
             
-            // Use cached data if still valid
-            if (now - cachedData.timestamp < CACHE_TTL && cachedData.window === timeWindow) {
+            // Use cached data if still valid and timeWindow hasn't changed
+            if (now - cachedData.timestamp < CACHE_TTL && cachedData.window === requestedTimeWindow && currentTimeWindowRef.current === requestedTimeWindow) {
               setTrendsDataChart(cachedData.data);
               setLoading(false);
               setIsUsingCache(true);
@@ -277,7 +294,7 @@ export function CompoundMetricsBlock({
     const fetchFreshData = async (abortController: AbortController) => {
       try {
         const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-        const url = `${baseUrl}/api/v1/market/${marketKey}/timeseries?window=${timeWindow}`;
+        const url = `${baseUrl}/api/v1/market/${marketKey}/timeseries?window=${requestedTimeWindow}`;
         
         const response = await fetchWithRetry(url, 5, 2000);
 
@@ -306,13 +323,18 @@ export function CompoundMetricsBlock({
 
         const data = await response.json();
         
+        // Check if timeWindow changed during fetch - if so, abort
+        if (currentTimeWindowRef.current !== requestedTimeWindow) {
+          return;
+        }
+        
         // Check if data is empty
         if (!data.data || data.data.length === 0) {
           // Show appropriate message based on window
-          if (timeWindow === "1y") {
+          if (requestedTimeWindow === "1y") {
             throw new Error("1 year data is not available yet. Historical data sync is in progress.");
           }
-          throw new Error(`No data available for ${timeWindow} period.`);
+          throw new Error(`No data available for ${requestedTimeWindow} period.`);
         }
         
         // Transform data array to MarketTrendData format
@@ -326,17 +348,22 @@ export function CompoundMetricsBlock({
         if (abortController.signal.aborted) {
           return;
         }
+        
+        // Double-check timeWindow hasn't changed before updating state
+        if (currentTimeWindowRef.current !== requestedTimeWindow) {
+          return;
+        }
 
         setTrendsDataChart(transformedData);
         setIsUsingCache(false);
 
-        // Cache the data
-        if (typeof window !== "undefined") {
-          const cacheKey = getCacheKey(marketKey, timeWindow);
+        // Cache the data (only if timeWindow hasn't changed)
+        if (typeof window !== "undefined" && currentTimeWindowRef.current === requestedTimeWindow) {
+          const cacheKey = getCacheKey(marketKey, requestedTimeWindow);
           const cachedData: CachedData = {
             data: transformedData,
             timestamp: Date.now(),
-            window: timeWindow,
+            window: requestedTimeWindow,
           };
           try {
             sessionStorage.setItem(cacheKey, JSON.stringify(cachedData));
@@ -352,15 +379,15 @@ export function CompoundMetricsBlock({
         
         console.error("Error fetching trends data:", err);
         
-        // If we have cached data, use it even if fresh fetch failed
+        // If we have cached data, use it even if fresh fetch failed (only if timeWindow hasn't changed)
         let usedCache = false;
-        if (typeof window !== "undefined") {
-          const cacheKey = getCacheKey(marketKey, timeWindow);
+        if (typeof window !== "undefined" && currentTimeWindowRef.current === requestedTimeWindow) {
+          const cacheKey = getCacheKey(marketKey, requestedTimeWindow);
           const cached = sessionStorage.getItem(cacheKey);
           if (cached) {
             try {
               const cachedData: CachedData = JSON.parse(cached);
-              if (cachedData.window === timeWindow && cachedData.data.length > 0) {
+              if (cachedData.window === requestedTimeWindow && cachedData.data.length > 0) {
                 setTrendsDataChart(cachedData.data);
                 setIsUsingCache(true);
                 setError(null);
@@ -399,7 +426,7 @@ export function CompoundMetricsBlock({
         console.warn("Error during cleanup:", e);
       }
     };
-  }, [marketKey, timeWindow, initialTimeseriesData]);
+  }, [marketKey, timeWindow]);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
