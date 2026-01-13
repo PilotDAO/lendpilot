@@ -261,6 +261,7 @@ export default async function AssetPage({ params }: AssetPageProps) {
       <AssetTopCards 
         reserve={reserveData} 
         marketDisplayName={market.displayName}
+        marketKey={marketKey}
         contractAddress={normalizedAddress}
       />
 

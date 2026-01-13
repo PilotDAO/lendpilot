@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { MarketName } from "@/app/components/MarketName";
 
 interface AssetTopCardsProps {
@@ -19,6 +20,7 @@ interface AssetTopCardsProps {
     };
   };
   marketDisplayName?: string;
+  marketKey?: string;
   contractAddress?: string;
 }
 
@@ -37,16 +39,24 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-export function AssetTopCards({ reserve, marketDisplayName, contractAddress }: AssetTopCardsProps) {
+export function AssetTopCards({ reserve, marketDisplayName, marketKey, contractAddress }: AssetTopCardsProps) {
+  const [copied, setCopied] = useState(false);
+  
   const utilizationRate = reserve.currentState.utilizationRate 
     ? reserve.currentState.utilizationRate * 100 
     : reserve.currentState.totalSuppliedUSD > 0
     ? (reserve.currentState.totalBorrowedUSD / reserve.currentState.totalSuppliedUSD) * 100
     : 0;
 
-  const handleCopyAddress = () => {
+  const handleCopyAddress = async () => {
     if (contractAddress) {
-      navigator.clipboard.writeText(contractAddress);
+      try {
+        await navigator.clipboard.writeText(contractAddress);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy address:", err);
+      }
     }
   };
 
@@ -69,37 +79,7 @@ export function AssetTopCards({ reserve, marketDisplayName, contractAddress }: A
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {reserve.symbol}
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{reserve.name}</p>
-              
-              {/* Информация о маркете и адресе контракта */}
-              {(marketDisplayName || contractAddress) && (
-                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {marketDisplayName && (
-                    <span className="flex items-center gap-1">
-                      <MarketName displayName={marketDisplayName} logoSize={12} />
-                    </span>
-                  )}
-                  {contractAddress && (
-                    <>
-                      {marketDisplayName && <span>•</span>}
-                      <span className="flex items-center gap-1.5">
-                        <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">
-                          {contractAddress.slice(0, 6)}...{contractAddress.slice(-4)}
-                        </code>
-                        <button
-                          onClick={handleCopyAddress}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                          title="Copy full address"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
+              <p className="text-sm text-gray-600 dark:text-gray-400">{reserve.name}</p>
             </div>
           </div>
           <div className="text-right">
@@ -109,6 +89,44 @@ export function AssetTopCards({ reserve, marketDisplayName, contractAddress }: A
             </div>
           </div>
         </div>
+
+        {/* Market Info */}
+        {(marketDisplayName || contractAddress) && (
+          <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+              Market
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {marketDisplayName && (
+                <div className="flex items-center">
+                  <MarketName displayName={marketDisplayName} marketKey={marketKey} logoSize={16} />
+                </div>
+              )}
+              {contractAddress && (
+                <div className="flex items-center gap-1.5">
+                  <code className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded font-mono text-gray-700 dark:text-gray-300">
+                    {contractAddress.slice(0, 6)}...{contractAddress.slice(-4)}
+                  </code>
+                  <button
+                    onClick={handleCopyAddress}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-0.5"
+                    title={copied ? "Copied!" : "Copy full address"}
+                  >
+                    {copied ? (
+                      <svg className="w-3.5 h-3.5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Key Metrics Grid - Compact 2x2 */}
         <div className="grid grid-cols-2 gap-4">
