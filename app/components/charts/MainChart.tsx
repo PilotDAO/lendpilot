@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 
 export type ChartMetric =
@@ -44,6 +44,14 @@ const metricIcons: Record<ChartMetric, string> = {
 };
 
 export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
+  // Track visible data range from dataZoom
+  const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(null);
+
+  // Reset visible range when metric or data changes
+  useEffect(() => {
+    setVisibleRange(null);
+  }, [metric, data.length]);
+
   const chartData = useMemo(() => {
     return data.map((item) => {
       let value: number;
@@ -73,8 +81,18 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
     });
   }, [data, metric]);
 
+  // Get visible data based on dataZoom range
+  const visibleData = useMemo(() => {
+    if (!visibleRange) {
+      return chartData;
+    }
+    const start = Math.floor((visibleRange.start / 100) * chartData.length);
+    const end = Math.ceil((visibleRange.end / 100) * chartData.length);
+    return chartData.slice(start, end);
+  }, [chartData, visibleRange]);
+
   // Calculate min/max for better Y-axis scaling to show changes more clearly
-  const values = chartData.map((item) => item[1] as number);
+  const values = visibleData.map((item) => item[1] as number);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue;
@@ -88,7 +106,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
     : minValue - range * 0.1;
   const yAxisMax = maxValue + range * 0.1;
   
-  // Calculate percentage change from first to last value for display
+  // Calculate percentage change from first to last value in visible range
   const firstValue = values.length > 0 ? values[0] : 0;
   const lastValue = values.length > 0 ? values[values.length - 1] : 0;
   
@@ -104,6 +122,24 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
     }
     // If both are effectively 0, percentChange stays 0
   }
+
+  // Handle dataZoom events to update visible range
+  const onEvents = useMemo(() => ({
+    dataZoom: (params: any) => {
+      if (params.batch && params.batch.length > 0) {
+        const zoom = params.batch[0];
+        setVisibleRange({
+          start: zoom.start || 0,
+          end: zoom.end || 100,
+        });
+      } else if (params.start !== undefined && params.end !== undefined) {
+        setVisibleRange({
+          start: params.start,
+          end: params.end,
+        });
+      }
+    },
+  }), []);
 
   const option = useMemo(
     () => ({
@@ -368,7 +404,11 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
           </div>
         )}
       </div>
-      <ReactECharts option={option} style={{ height: "400px", width: "100%" }} />
+      <ReactECharts 
+        option={option} 
+        style={{ height: "400px", width: "100%" }}
+        onEvents={onEvents}
+      />
     </div>
   );
 }
