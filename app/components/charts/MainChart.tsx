@@ -192,9 +192,10 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
         splitLine: {
           show: true,
           lineStyle: {
-            color: "#F3F4F6",
+            color: "#F9FAFB",
             type: "dashed",
             width: 1,
+            opacity: 0.5,
           },
         },
         axisLine: {
@@ -212,7 +213,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
             color: metric === "supplyAPR" ? "#10B981" : metric === "borrowAPR" ? "#F59E0B" : "#3B82F6",
           },
           areaStyle: {
-            opacity: 0.2,
+            opacity: 0.25,
             color: {
               type: "linear",
               x: 0,
@@ -223,18 +224,18 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
                 {
                   offset: 0,
                   color: metric === "supplyAPR" 
-                    ? "rgba(16, 185, 129, 0.3)" 
+                    ? "rgba(16, 185, 129, 0.4)" 
                     : metric === "borrowAPR" 
-                    ? "rgba(245, 158, 11, 0.3)" 
-                    : "rgba(59, 130, 246, 0.3)",
+                    ? "rgba(245, 158, 11, 0.4)" 
+                    : "rgba(59, 130, 246, 0.4)",
                 },
                 {
                   offset: 1,
                   color: metric === "supplyAPR" 
-                    ? "rgba(16, 185, 129, 0.05)" 
+                    ? "rgba(16, 185, 129, 0.08)" 
                     : metric === "borrowAPR" 
-                    ? "rgba(245, 158, 11, 0.05)" 
-                    : "rgba(59, 130, 246, 0.05)",
+                    ? "rgba(245, 158, 11, 0.08)" 
+                    : "rgba(59, 130, 246, 0.08)",
                 },
               ],
             },
