@@ -40,7 +40,7 @@ async function main() {
     // Sync asset snapshots (runs less frequently, can take longer)
     // This can be run separately via cron if needed
     console.log('🔄 Syncing asset snapshots...');
-    await syncAllAssetSnapshots(90);
+    await syncAllAssetSnapshots(365);
 
     // Optional: Clean up old data (keep last 365 days)
     // Uncomment if you want to clean up old data

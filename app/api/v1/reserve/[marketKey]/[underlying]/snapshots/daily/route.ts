@@ -29,9 +29,9 @@ export async function GET(
   const normalizedAddress = normalizeAddress(underlying);
 
   try {
-    // Get snapshots from database (last 90 days)
+    // Get snapshots from database (last 365 days for 1-year average calculations)
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 90);
+    cutoffDate.setDate(cutoffDate.getDate() - 365);
 
     const snapshots = await prisma.assetSnapshot.findMany({
       where: {

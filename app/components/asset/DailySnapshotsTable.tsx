@@ -51,9 +51,9 @@ export function DailySnapshotsTable({
     );
   }
 
-  // Sort snapshots by date descending (newest first)
+  // Sort snapshots by Supplied (USD) descending (highest first)
   const sortedSnapshots = [...snapshots].sort((a, b) => {
-    return b.date.localeCompare(a.date);
+    return b.totalSuppliedUSD - a.totalSuppliedUSD;
   });
 
   return (

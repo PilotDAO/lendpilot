@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   try {
     console.log('🔄 Starting asset snapshots sync via cron...');
-    await syncAllAssetSnapshots(90);
+    await syncAllAssetSnapshots(365);
     
     return NextResponse.json({
       success: true,
