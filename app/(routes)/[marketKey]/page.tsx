@@ -14,6 +14,8 @@ import {
 import { liveDataCache } from "@/lib/cache/cache-instances";
 import { withRetry } from "@/lib/utils/retry";
 import { BigNumber } from "@/lib/utils/big-number";
+import { prisma } from "@/lib/db/prisma";
+import { calculateMarketTrends } from "@/lib/calculations/trends";
 
 interface MarketPageProps {
   params: Promise<{ marketKey: string }>;
@@ -128,6 +130,66 @@ async function getMarketData(marketKey: string) {
   }
 }
 
+interface TimeseriesData {
+  date: string;
+  totalSuppliedUSD: number;
+  totalBorrowedUSD: number;
+  availableLiquidityUSD: number;
+}
+
+async function getTimeseriesData(
+  marketKey: string,
+  window: "30d" | "6m" | "1y" = "30d"
+): Promise<TimeseriesData[]> {
+  try {
+    // Try to fetch from database first (fast path)
+    const dbData = await prisma.marketTimeseries.findMany({
+      where: {
+        marketKey,
+        window,
+      },
+      orderBy: {
+        date: 'asc',
+      },
+      select: {
+        date: true,
+        totalSuppliedUSD: true,
+        totalBorrowedUSD: true,
+        availableLiquidityUSD: true,
+      },
+    });
+
+    // If we have data in DB, return it immediately
+    if (dbData.length > 0) {
+      return dbData.map((row) => ({
+        date: row.date.toISOString().split('T')[0],
+        totalSuppliedUSD: row.totalSuppliedUSD,
+        totalBorrowedUSD: row.totalBorrowedUSD,
+        availableLiquidityUSD: row.availableLiquidityUSD,
+      }));
+    }
+
+    // Fallback: Calculate from Subgraph if DB is empty (slow path)
+    console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
+    
+    const trendsData = await calculateMarketTrends(marketKey, window);
+    
+    if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
+      return [];
+    }
+
+    return trendsData.data.map((trend) => ({
+      date: trend.date,
+      totalSuppliedUSD: trend.totalSuppliedUSD,
+      totalBorrowedUSD: trend.totalBorrowedUSD,
+      availableLiquidityUSD: trend.availableLiquidityUSD,
+    }));
+  } catch (error) {
+    console.error(`Error fetching timeseries for ${marketKey}:`, error);
+    return [];
+  }
+}
+
 export default async function MarketPage({ params }: MarketPageProps) {
   const { marketKey } = await params;
 
@@ -141,27 +203,27 @@ export default async function MarketPage({ params }: MarketPageProps) {
     notFound();
   }
 
-  // Fetch market data
-  const marketData = await getMarketData(marketKey);
+  // Fetch market data, timeseries data, and trends in parallel
+  const [marketData, timeseriesData, trendsResponse] = await Promise.all([
+    getMarketData(marketKey),
+    getTimeseriesData(marketKey, "30d"),
+    // Получаем тренды для изменений (может быть null при ошибке)
+    calculateMarketTrends(marketKey, "30d").catch(() => null),
+  ]);
 
   if (!marketData) {
     notFound();
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          <MarketName displayName={market.displayName} logoSize={28} />
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Market overview with all assets and key metrics
-        </p>
-      </div>
-
+    <div className="container mx-auto px-4 py-6">
       <CompoundMetricsBlock
         marketKey={marketKey}
         currentTotals={marketData.totals}
+        initialTimeseriesData={timeseriesData}
+        trendsData={trendsResponse?.totals}
+        marketName={<MarketName displayName={market.displayName} logoSize={20} />}
+        description="Market overview with all assets and key metrics"
       />
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">

@@ -1,19 +1,44 @@
 import { Suspense } from "react";
 import { StablecoinsTable } from "@/app/components/tables/StablecoinsTable";
 import { StablecoinsTotals } from "@/app/components/stablecoins/StablecoinsTotals";
-import { AggregatedStablecoinData } from "@/lib/calculations/stablecoins";
+import {
+  aggregateStablecoinsData,
+  AggregatedStablecoinData,
+} from "@/lib/calculations/stablecoins";
+import { liveDataCache } from "@/lib/cache/cache-instances";
 
 async function getStablecoinsData(): Promise<AggregatedStablecoinData[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const response = await fetch(`${baseUrl}/api/v1/stablecoins`, {
-    next: { revalidate: 60 }, // Revalidate every 60 seconds
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch stablecoins data");
+  // Check cache first
+  const cacheKey = "stablecoins:aggregated";
+  const cached = liveDataCache.get(cacheKey);
+  if (cached) {
+    const cachedData = cached as unknown as { data: AggregatedStablecoinData[] };
+    return cachedData.data;
   }
 
-  return response.json();
+  try {
+    // Call the function directly instead of HTTP request
+    // This is more efficient and avoids network issues
+    const data = await aggregateStablecoinsData();
+
+    // Cache response
+    liveDataCache.set(cacheKey, { data } as Record<string, unknown>);
+
+    return data;
+  } catch (error) {
+    // Try to return stale cache
+    const stale = liveDataCache.get(cacheKey);
+    if (stale) {
+      const staleData = stale as unknown as { data: AggregatedStablecoinData[] };
+      return staleData.data;
+    }
+
+    // Provide more detailed error information
+    if (error instanceof Error) {
+      throw new Error(`Failed to aggregate stablecoins data: ${error.message}`);
+    }
+    throw new Error(`Unknown error: ${String(error)}`);
+  }
 }
 
 function calculateTotals(
@@ -52,8 +77,14 @@ export default async function StablecoinsPage() {
 
       {error ? (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-          <p className="text-red-800 dark:text-red-200">
-            Error loading stablecoins data: {error}
+          <p className="text-red-800 dark:text-red-200 font-semibold mb-2">
+            Error loading stablecoins data
+          </p>
+          <p className="text-red-700 dark:text-red-300 text-sm">
+            {error}
+          </p>
+          <p className="text-red-600 dark:text-red-400 text-xs mt-2">
+            If this error persists, please check server logs and ensure all environment variables are configured correctly.
           </p>
         </div>
       ) : (

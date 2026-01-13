@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import { formatUSD, formatNumber } from "@/lib/utils/format";
 
@@ -14,10 +14,31 @@ interface MarketTotalsChartProps {
 }
 
 export function MarketTotalsChart({ data }: MarketTotalsChartProps) {
+  const chartRef = useRef<ReactECharts>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (chartRef.current) {
+        try {
+          const instance = chartRef.current.getEchartsInstance();
+          if (instance && typeof instance.dispose === "function") {
+            instance.dispose();
+          }
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }
+    };
+  }, []);
+
   const option = useMemo(() => {
     const dates = data.map((d) => d.date);
-    // Supply = available liquidity, Borrowing = total borrowed
-    // Total Supply = Supply + Borrowing (stacked)
+    // Stacked bar chart showing:
+    // - Bottom (green): Available liquidity (what can be borrowed)
+    // - Top (orange): Borrowed amount
+    // - Total height = Total Supply (availableLiquidity + borrowed = totalSupplied)
+    // Note: totalSuppliedUSD = availableLiquidityUSD + totalBorrowedUSD
     const supplyData = data.map((d) => d.availableLiquidityUSD);
     const borrowingData = data.map((d) => d.totalBorrowedUSD);
 
@@ -117,7 +138,11 @@ export function MarketTotalsChart({ data }: MarketTotalsChartProps) {
 
   return (
     <div className="w-full">
-      <ReactECharts option={option} style={{ height: "300px", width: "100%" }} />
+      <ReactECharts 
+        ref={chartRef}
+        option={option} 
+        style={{ height: "300px", width: "100%" }} 
+      />
     </div>
   );
 }

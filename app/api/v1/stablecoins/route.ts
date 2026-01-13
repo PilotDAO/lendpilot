@@ -30,20 +30,29 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error aggregating stablecoins data:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error("Error aggregating stablecoins data:", {
+      message: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString(),
+    });
 
     // Try to return stale cache
     const stale = liveDataCache.get(cacheKey);
     if (stale) {
+      console.warn("Returning stale cache data due to error");
       const staleData = stale as unknown as { data: AggregatedStablecoinData[] };
       return NextResponse.json(staleData.data);
     }
 
+    // Return error response with more details
     return NextResponse.json(
       createErrorResponse(
         ErrorCodes.UPSTREAM_ERROR,
         "Failed to aggregate stablecoins data",
-        error instanceof Error ? error.message : String(error)
+        errorMessage
       ),
       { status: 503 }
     );
