@@ -204,24 +204,30 @@ export default async function MarketPage({ params }: MarketPageProps) {
   }
 
   // Fetch market data, timeseries data, and trends in parallel
-  const [marketData, timeseriesData, trendsResponse] = await Promise.all([
+  const [marketData, timeseriesData, trendsResponse] = await Promise.allSettled([
     getMarketData(marketKey),
     getTimeseriesData(marketKey, "30d"),
     // Получаем тренды для изменений (может быть null при ошибке)
     calculateMarketTrends(marketKey, "30d").catch(() => null),
   ]);
 
-  if (!marketData) {
+  // Handle errors gracefully
+  if (marketData.status === "rejected" || !marketData.value) {
+    console.error("Failed to fetch market data:", marketData.status === "rejected" ? marketData.reason : "No data");
     notFound();
   }
+
+  const resolvedMarketData = marketData.value;
+  const resolvedTimeseriesData = timeseriesData.status === "fulfilled" ? timeseriesData.value : [];
+  const resolvedTrendsData = trendsResponse.status === "fulfilled" ? trendsResponse.value?.totals : null;
 
   return (
     <div className="container mx-auto px-4 py-6">
       <CompoundMetricsBlock
         marketKey={marketKey}
-        currentTotals={marketData.totals}
-        initialTimeseriesData={timeseriesData}
-        trendsData={trendsResponse?.totals}
+        currentTotals={resolvedMarketData.totals}
+        initialTimeseriesData={resolvedTimeseriesData}
+        trendsData={resolvedTrendsData}
         marketName={<MarketName displayName={market.displayName} marketKey={marketKey} logoSize={20} />}
         description="Market overview with all assets and key metrics"
       />
@@ -230,7 +236,7 @@ export default async function MarketPage({ params }: MarketPageProps) {
         <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
           Assets
         </h2>
-        <ReservesTable reserves={marketData.reserves} marketKey={marketKey} />
+        <ReservesTable reserves={resolvedMarketData.reserves} marketKey={marketKey} />
       </div>
     </div>
   );
