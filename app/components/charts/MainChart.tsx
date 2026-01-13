@@ -26,12 +26,21 @@ interface MainChartProps {
 }
 
 const metricLabels: Record<ChartMetric, string> = {
-  supplyAPR: "Supply APR (%)",
-  borrowAPR: "Borrow APR (%)",
-  suppliedUSD: "Supplied (USD)",
-  borrowedUSD: "Borrowed (USD)",
-  utilization: "Utilization Rate (%)",
-  price: "Price (USD)",
+  supplyAPR: "Supply APR",
+  borrowAPR: "Borrow APR",
+  suppliedUSD: "Supplied",
+  borrowedUSD: "Borrowed",
+  utilization: "Utilization",
+  price: "Price",
+};
+
+const metricIcons: Record<ChartMetric, string> = {
+  supplyAPR: "📈",
+  borrowAPR: "📉",
+  suppliedUSD: "💰",
+  borrowedUSD: "💸",
+  utilization: "📊",
+  price: "💵",
 };
 
 export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
@@ -66,17 +75,15 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
 
   const option = useMemo(
     () => ({
-      title: {
-        text: metricLabels[metric],
-        left: "center",
-        textStyle: {
-          color: "#374151",
-        },
-      },
       tooltip: {
         trigger: "axis",
         axisPointer: {
           type: "cross",
+        },
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        borderColor: "transparent",
+        textStyle: {
+          color: "#fff",
         },
       },
       xAxis: {
@@ -84,10 +91,27 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
         data: data.map((item) => item.date),
         axisLabel: {
           rotate: 45,
+          fontSize: 11,
+          color: "#6B7280",
+        },
+        axisLine: {
+          lineStyle: {
+            color: "#E5E7EB",
+          },
         },
       },
       yAxis: {
         type: "value",
+        axisLabel: {
+          fontSize: 11,
+          color: "#6B7280",
+        },
+        splitLine: {
+          lineStyle: {
+            color: "#F3F4F6",
+            type: "dashed",
+          },
+        },
       },
       series: [
         {
@@ -95,15 +119,23 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
           type: "line",
           data: chartData.map((item) => item[1]),
           smooth: true,
-          areaStyle: {
-            opacity: 0.3,
+          lineStyle: {
+            width: 2,
+            color: metric === "supplyAPR" ? "#10B981" : metric === "borrowAPR" ? "#F59E0B" : "#3B82F6",
           },
+          areaStyle: {
+            opacity: 0.15,
+            color: metric === "supplyAPR" ? "#10B981" : metric === "borrowAPR" ? "#F59E0B" : "#3B82F6",
+          },
+          symbol: "circle",
+          symbolSize: 4,
         },
       ],
       grid: {
         left: "3%",
         right: "4%",
-        bottom: "15%",
+        bottom: "12%",
+        top: "10%",
         containLabel: true,
       },
     }),
@@ -112,21 +144,23 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="mb-4">
-          <select
-            value={metric}
-            onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            {Object.entries(metricLabels).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {Object.entries(metricLabels).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => onMetricChange(key as ChartMetric)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                metric === key
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              }`}
+            >
+              {metricIcons[key as ChartMetric]} {label}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+        <div className="flex items-center justify-center h-48 text-gray-500 dark:text-gray-400">
           Insufficient data
         </div>
       </div>
@@ -134,21 +168,24 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="mb-4">
-        <select
-          value={metric}
-          onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        >
-          {Object.entries(metricLabels).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+      {/* Compact Button Group */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {Object.entries(metricLabels).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => onMetricChange(key as ChartMetric)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              metric === key
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+            }`}
+          >
+            {metricIcons[key as ChartMetric]} {label}
+          </button>
+        ))}
       </div>
-      <ReactECharts option={option} style={{ height: "400px", width: "100%" }} />
+      <ReactECharts option={option} style={{ height: "320px", width: "100%" }} />
     </div>
   );
 }

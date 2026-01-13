@@ -258,16 +258,11 @@ export default async function AssetPage({ params }: AssetPageProps) {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          {reserveData.symbol} - {reserveData.name}
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          <MarketName displayName={market.displayName} logoSize={16} /> • {normalizedAddress}
-        </p>
-      </div>
-
-      <AssetTopCards reserve={reserveData} />
+      <AssetTopCards 
+        reserve={reserveData} 
+        marketDisplayName={market.displayName}
+        contractAddress={normalizedAddress}
+      />
 
       {snapshots.status === "rejected" && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
