@@ -146,12 +146,15 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
         let start = 0;
         let end = 100;
         
+        // ECharts can send events in different formats
+        // Check for batch first (when both inside and slider dataZoom are active)
         if (params && params.batch && Array.isArray(params.batch) && params.batch.length > 0) {
           // Batch event (multiple dataZoom components)
-          const zoom = params.batch[0];
-          if (zoom && zoom.start !== undefined && zoom.end !== undefined) {
-            start = Number(zoom.start);
-            end = Number(zoom.end);
+          // Use the slider event if available, otherwise use first
+          const sliderEvent = params.batch.find((b: any) => b.dataZoomId === "slider") || params.batch[0];
+          if (sliderEvent && sliderEvent.start !== undefined && sliderEvent.end !== undefined) {
+            start = Number(sliderEvent.start);
+            end = Number(sliderEvent.end);
           }
         } else if (params && params.start !== undefined && params.end !== undefined) {
           // Single event
@@ -160,6 +163,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
         }
         
         // Ensure valid range and update
+        // Allow start to be 0 to show full range backwards
         if (!isNaN(start) && !isNaN(end) && start >= 0 && end <= 100 && start < end) {
           setVisibleRange({ start, end });
         }
@@ -360,6 +364,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
       },
       dataZoom: data.length > 30 ? [
         {
+          id: "inside",
           type: "inside",
           start: visibleRange ? visibleRange.start : Math.max(0, 100 - (30 / data.length) * 100),
           end: visibleRange ? visibleRange.end : 100,
@@ -368,6 +373,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
           filterMode: "none", // Allow zooming to any range
         },
         {
+          id: "slider",
           type: "slider",
           start: visibleRange ? visibleRange.start : Math.max(0, 100 - (30 / data.length) * 100),
           end: visibleRange ? visibleRange.end : 100,
