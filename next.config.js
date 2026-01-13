@@ -10,6 +10,18 @@ const nextConfig = {
         protocol: "https",
         hostname: "token-logos.family.co",
       },
+      {
+        protocol: "https",
+        hostname: "cryptologos.cc",
+      },
+      {
+        protocol: "https",
+        hostname: "assets.coingecko.com",
+      },
+      {
+        protocol: "https",
+        hostname: "raw.githubusercontent.com",
+      },
     ],
   },
 }

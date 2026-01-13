@@ -15,6 +15,7 @@ import { normalizeAddress } from "@/lib/utils/address";
 import { AggregatedStablecoinData } from "@/lib/calculations/stablecoins";
 import { MicroBarChart, formatDelta30d } from "@/app/components/charts/MicroBarChart";
 import { calculate30DayAPRSeries, calculate30DayAPRStats } from "@/lib/calculations/apr";
+import { getChainLogoUrl, getChainName } from "@/lib/utils/chain-logo";
 
 interface StablecoinsTableProps {
   data: AggregatedStablecoinData[];
@@ -92,7 +93,67 @@ const columns: ColumnDef<StablecoinRow>[] = [
   {
     accessorKey: "marketKey",
     header: "Market",
-    cell: ({ row }) => row.original.marketName,
+    cell: ({ row }) => {
+      const item = row.original;
+      const marketUrl = `/${item.marketKey}`;
+      const chainLogoUrl = getChainLogoUrl(item.marketKey);
+      const chainName = getChainName(item.marketKey);
+
+      // Remove "Aave" from market name
+      const marketNameWithoutAave = item.marketName
+        .replace(/^Aave\s*/i, "")
+        .replace(/\s*Aave\s*/i, " ")
+        .trim();
+
+      return (
+        <Link
+          href={marketUrl}
+          className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
+        >
+          {/* Aave logo with tooltip */}
+          <div className="relative group flex-shrink-0">
+            <Image
+              src="/aave-logo.svg"
+              alt="Aave"
+              width={16}
+              height={10}
+              className="inline-block"
+              style={{
+                width: "16px",
+                height: "10px",
+                display: "inline-block",
+              }}
+            />
+            {/* Tooltip on hover */}
+            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+              Aave
+            </span>
+          </div>
+          {/* Chain logo */}
+          {chainLogoUrl ? (
+            <Image
+              src={chainLogoUrl}
+              alt={chainName}
+              width={16}
+              height={16}
+              className="rounded-full flex-shrink-0"
+              style={{
+                width: "16px",
+                height: "16px",
+                display: "inline-block",
+              }}
+              unoptimized
+              onError={(e) => {
+                // Hide image if it fails to load
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : null}
+          {/* Market name text without Aave */}
+          <span className="text-sm whitespace-nowrap">{marketNameWithoutAave}</span>
+        </Link>
+      );
+    },
   },
   {
     accessorKey: "totalSuppliedUSD",
