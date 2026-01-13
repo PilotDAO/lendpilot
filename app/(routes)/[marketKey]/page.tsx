@@ -222,7 +222,7 @@ export default async function MarketPage({ params }: MarketPageProps) {
         currentTotals={marketData.totals}
         initialTimeseriesData={timeseriesData}
         trendsData={trendsResponse?.totals}
-        marketName={<MarketName displayName={market.displayName} logoSize={20} />}
+        marketName={<MarketName displayName={market.displayName} marketKey={marketKey} logoSize={20} />}
         description="Market overview with all assets and key metrics"
       />
 
