@@ -99,11 +99,28 @@ const columns: ColumnDef<StablecoinRow>[] = [
       const chainLogoUrl = getChainLogoUrl(item.marketKey);
       const chainName = getChainName(item.marketKey);
 
-      // Remove "Aave" from market name
-      const marketNameWithoutAave = item.marketName
-        .replace(/^Aave\s*/i, "")
-        .replace(/\s*Aave\s*/i, " ")
+      // Format market name: remove "Aave", move "V3" to end with space
+      // Example: "AaveV3Ethereum" -> "Ethereum V3"
+      // Example: "AaveV3EthereumEtherFi" -> "Ethereum EtherFi V3"
+      let formattedMarketName = item.marketName
+        .replace(/^Aave\s*/i, "") // Remove Aave from start
+        .replace(/\s*Aave\s*/i, " ") // Remove Aave from middle
         .trim();
+      
+      // Remove V3 from anywhere
+      const hasV3 = /V3/i.test(formattedMarketName);
+      formattedMarketName = formattedMarketName
+        .replace(/\s*V3\s*/i, "") // Remove V3 from anywhere
+        .trim();
+      
+      // Add spaces before capital letters (camelCase to Words)
+      // Example: "EthereumEtherFi" -> "Ethereum EtherFi"
+      formattedMarketName = formattedMarketName.replace(/([a-z])([A-Z])/g, "$1 $2");
+      
+      // Add V3 at the end if it was present or if marketKey suggests V3
+      if (hasV3 || item.marketKey.includes("-v3")) {
+        formattedMarketName = formattedMarketName + " V3";
+      }
 
       return (
         <Link
@@ -149,8 +166,8 @@ const columns: ColumnDef<StablecoinRow>[] = [
               }}
             />
           ) : null}
-          {/* Market name text without Aave */}
-          <span className="text-sm whitespace-nowrap">{marketNameWithoutAave}</span>
+          {/* Market name text formatted */}
+          <span className="text-sm whitespace-nowrap">{formattedMarketName}</span>
         </Link>
       );
     },
