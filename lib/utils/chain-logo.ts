@@ -28,6 +28,7 @@ const MARKET_TO_CHAIN_ID: Record<string, number> = {
 };
 
 // Map chainId to chain logo URL
+// Using multiple CDN sources for reliability
 const CHAIN_LOGO_MAP: Record<number, string> = {
   1: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Ethereum
   10: "https://cryptologos.cc/logos/optimism-ethereum-op-logo.png", // Optimism
@@ -38,14 +39,14 @@ const CHAIN_LOGO_MAP: Record<number, string> = {
   324: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // ZKsync (fallback to ETH)
   1088: "https://cryptologos.cc/logos/metis-andromeda-metis-logo.png", // Metis
   1868: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Soneium (fallback)
-  8453: "https://cryptologos.cc/logos/base-base-logo.png", // Base
+  8453: "https://assets.coingecko.com/coins/images/27509/small/base.png", // Base
   9745: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Plasma (fallback)
   42161: "https://cryptologos.cc/logos/arbitrum-arb-logo.png", // Arbitrum
   42220: "https://cryptologos.cc/logos/celo-celo-logo.png", // Celo
   43114: "https://cryptologos.cc/logos/avalanche-avax-logo.png", // Avalanche
   57073: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Ink (fallback)
-  59144: "https://cryptologos.cc/logos/linea-linea-logo.png", // Linea
-  534352: "https://cryptologos.cc/logos/scroll-scroll-logo.png", // Scroll
+  59144: "https://assets.coingecko.com/coins/images/31049/small/linea.png", // Linea
+  534352: "https://assets.coingecko.com/coins/images/31050/small/scroll.png", // Scroll
 };
 
 // Map chainId to chain name
