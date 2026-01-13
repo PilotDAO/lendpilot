@@ -3,8 +3,8 @@ import "./globals.css";
 import { NavigationBar } from "./components/layout/NavigationBar";
 
 export const metadata: Metadata = {
-  title: "LandPilot - Live and historical Landing market rates by DAO Pilot",
-  description: "Live and historical Landing market rates by DAO Pilot",
+  title: "LendPilot - Live and historical Lending market rates by DAO Pilot",
+  description: "Live and historical Lending market rates by DAO Pilot",
   icons: {
     icon: "/icon.png",
     shortcut: "/icon.png",

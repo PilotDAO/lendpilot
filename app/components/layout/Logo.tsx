@@ -11,7 +11,7 @@ export function Logo({ className = "", size = 40 }: LogoProps) {
   return (
     <Image
       src="/logo.png"
-      alt="LandPilot Logo"
+      alt="LendPilot Logo"
       width={size}
       height={size}
       className={className}

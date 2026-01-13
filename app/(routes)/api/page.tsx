@@ -8,7 +8,7 @@ export default function APIDocumentationPage() {
           API Documentation
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Backend-for-Frontend (BFF) API for LandPilot - Landing market rates analytics
+          Backend-for-Frontend (BFF) API for LendPilot - Lending market rates analytics
         </p>
       </div>
 

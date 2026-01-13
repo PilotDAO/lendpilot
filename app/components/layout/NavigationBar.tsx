@@ -35,10 +35,10 @@ export function NavigationBar() {
             <Logo size={40} className="flex-shrink-0" />
             <div className="flex flex-col leading-tight">
               <span className="text-xl font-bold text-gray-900 dark:text-white">
-                LandPilot
+                LendPilot
               </span>
               <span className="text-xs text-gray-500 dark:text-gray-400 font-normal italic">
-                Live and historical Landing market rates by DAO Pilot
+                Live and historical Lending market rates by <strong>DAO Pilot</strong>
               </span>
             </div>
           </Link>

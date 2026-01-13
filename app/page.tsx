@@ -9,10 +9,10 @@ export default function Home() {
     <main className="container mx-auto px-4 py-8">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-          LandPilot
+          LendPilot
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-400">
-          Live and historical Landing market rates by DAO Pilot
+          Live and historical Lending market rates by <strong>DAO Pilot</strong>
         </p>
       </div>
 
