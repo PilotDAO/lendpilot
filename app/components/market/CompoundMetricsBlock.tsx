@@ -278,7 +278,7 @@ export function CompoundMetricsBlock({
               setIsUsingCache(true);
               
               // Still fetch fresh data in background
-              fetchFreshData(abortController);
+              fetchFreshData(abortController, requestedTimeWindow);
               return;
             }
           } catch (e) {
@@ -288,10 +288,10 @@ export function CompoundMetricsBlock({
         }
       }
 
-      await fetchFreshData(abortController);
+      await fetchFreshData(abortController, requestedTimeWindow);
     };
 
-    const fetchFreshData = async (abortController: AbortController) => {
+    const fetchFreshData = async (abortController: AbortController, requestedTimeWindow: "30d" | "6m" | "1y") => {
       try {
         const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
         const url = `${baseUrl}/api/v1/market/${marketKey}/timeseries?window=${requestedTimeWindow}`;

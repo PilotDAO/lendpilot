@@ -58,7 +58,7 @@ async function monitorSync() {
       // Get actual asset count from AaveKit
       const reserves = await withRetry(
         () => queryReserves(market.marketKey),
-        { maxRetries: 2 }
+        { maxAttempts: 2 }
       );
 
       const assetCount = reserves.length;

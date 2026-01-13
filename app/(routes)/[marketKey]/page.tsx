@@ -219,7 +219,7 @@ export default async function MarketPage({ params }: MarketPageProps) {
 
   const resolvedMarketData = marketData.value;
   const resolvedTimeseriesData = timeseriesData.status === "fulfilled" ? timeseriesData.value : [];
-  const resolvedTrendsData = trendsResponse.status === "fulfilled" ? trendsResponse.value?.totals : null;
+  const resolvedTrendsData = trendsResponse.status === "fulfilled" ? trendsResponse.value?.totals : undefined;
 
   return (
     <div className="container mx-auto px-4 py-6">
