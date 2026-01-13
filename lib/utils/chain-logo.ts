@@ -39,14 +39,14 @@ const CHAIN_LOGO_MAP: Record<number, string> = {
   324: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // ZKsync (fallback to ETH)
   1088: "https://cryptologos.cc/logos/metis-andromeda-metis-logo.png", // Metis
   1868: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Soneium (fallback)
-  8453: "https://assets.coingecko.com/coins/images/27509/small/base.png", // Base
+  8453: "/base-logo.svg", // Base
   9745: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Plasma (fallback)
   42161: "https://cryptologos.cc/logos/arbitrum-arb-logo.png", // Arbitrum
   42220: "https://cryptologos.cc/logos/celo-celo-logo.png", // Celo
   43114: "https://cryptologos.cc/logos/avalanche-avax-logo.png", // Avalanche
   57073: "https://cryptologos.cc/logos/ethereum-eth-logo.png", // Ink (fallback)
-  59144: "https://assets.coingecko.com/coins/images/31049/small/linea.png", // Linea
-  534352: "https://assets.coingecko.com/coins/images/31050/small/scroll.png", // Scroll
+  59144: "/linea-logo.svg", // Linea
+  534352: "/scroll-logo.svg", // Scroll
 };
 
 // Map chainId to chain name
