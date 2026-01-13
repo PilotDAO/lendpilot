@@ -141,26 +141,30 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
   // Handle dataZoom events to update visible range
   const onEvents = useMemo(() => ({
     dataZoom: (params: any) => {
-      // Handle both single and batch events
-      let start = 0;
-      let end = 100;
-      
-      if (params.batch && Array.isArray(params.batch) && params.batch.length > 0) {
-        // Batch event (multiple dataZoom components)
-        const zoom = params.batch[0];
-        if (zoom.start !== undefined && zoom.end !== undefined) {
-          start = zoom.start;
-          end = zoom.end;
+      try {
+        // Handle both single and batch events
+        let start = 0;
+        let end = 100;
+        
+        if (params && params.batch && Array.isArray(params.batch) && params.batch.length > 0) {
+          // Batch event (multiple dataZoom components)
+          const zoom = params.batch[0];
+          if (zoom && zoom.start !== undefined && zoom.end !== undefined) {
+            start = Number(zoom.start);
+            end = Number(zoom.end);
+          }
+        } else if (params && params.start !== undefined && params.end !== undefined) {
+          // Single event
+          start = Number(params.start);
+          end = Number(params.end);
         }
-      } else if (params.start !== undefined && params.end !== undefined) {
-        // Single event
-        start = params.start;
-        end = params.end;
-      }
-      
-      // Ensure valid range
-      if (start >= 0 && end <= 100 && start < end) {
-        setVisibleRange({ start, end });
+        
+        // Ensure valid range and update
+        if (!isNaN(start) && !isNaN(end) && start >= 0 && end <= 100 && start < end) {
+          setVisibleRange({ start, end });
+        }
+      } catch (error) {
+        console.warn("Error handling dataZoom event:", error);
       }
     },
   }), []);
@@ -359,6 +363,8 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
           type: "inside",
           start: Math.max(0, 100 - (30 / data.length) * 100),
           end: 100,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
         },
         {
           type: "slider",
@@ -366,6 +372,15 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
           end: 100,
           height: 20,
           bottom: "5%",
+          handleIcon: "M10.7,11.9v-1.3H9.3v1.3c-4.9,0.3-8.8,4.4-8.8,9.4c0,5,3.9,9.1,8.8,9.4v1.3h1.3v-1.3c4.9-0.3,8.8-4.4,8.8-9.4C19.5,16.3,15.6,12.2,10.7,11.9z M13.3,24.4H6.7V23.1h6.6V24.4z M13.3,19.6H6.7v-1.4h6.6V19.6z",
+          handleSize: "80%",
+          handleStyle: {
+            color: "#fff",
+            shadowBlur: 3,
+            shadowColor: "rgba(0, 0, 0, 0.6)",
+            shadowOffsetX: 2,
+            shadowOffsetY: 2,
+          },
         },
       ] : undefined,
     }),
@@ -432,6 +447,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
         option={option} 
         style={{ height: "400px", width: "100%" }}
         onEvents={onEvents}
+        opts={{ renderer: "svg" }}
       />
     </div>
   );
