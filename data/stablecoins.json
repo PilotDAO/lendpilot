@@ -1,17 +1,337 @@
 [
   {
+    "symbol": "DAI",
+    "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
+    "markets": [
+      "ethereum-v3"
+    ]
+  },
+  {
+    "symbol": "DAI",
+    "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+    "markets": [
+      "optimism-v3",
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "DAI",
+    "address": "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063",
+    "markets": [
+      "polygon-v3"
+    ]
+  },
+  {
+    "symbol": "EURA",
+    "address": "0xe0b52e49357fd4daf2c15e02058dce6bc0057db4",
+    "markets": [
+      "polygon-v3"
+    ]
+  },
+  {
+    "symbol": "EURS",
+    "address": "0xe111178a87a3bff0c8d18decba5798827539ae99",
+    "markets": [
+      "polygon-v3"
+    ]
+  },
+  {
+    "symbol": "EURS",
+    "address": "0xd22a58f79e9481d1a88e00c343885a588b34b68b",
+    "markets": [
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "FRAX",
+    "address": "0x853d955acef822db058eb8505911ed77f175b99e",
+    "markets": [
+      "ethereum-v3",
+      "ethereum-ether-fi-v3"
+    ]
+  },
+  {
+    "symbol": "FRAX",
+    "address": "0x17fc002b466eec40dae837fc4be5c67993ddbd6f",
+    "markets": [
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "FRAX",
+    "address": "0xd24c2ad096400b6fbcd2ad8b24e7acbc21a1da64",
+    "markets": [
+      "avalanche-v3"
+    ]
+  },
+  {
+    "symbol": "GHO",
+    "address": "0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f",
+    "markets": [
+      "ethereum-v3",
+      "ethereum-lido-v3",
+      "ethereum-horizon-v3"
+    ]
+  },
+  {
+    "symbol": "GHO",
+    "address": "0xfc421ad3c883bf9e7c4f42de845c4e4405799e73",
+    "markets": [
+      "gnosis-v3",
+      "avalanche-v3",
+      "ink-v3"
+    ]
+  },
+  {
+    "symbol": "GHO",
+    "address": "0x6bb7a212910682dcfdbd5bcbb3e28fb4e8da10ee",
+    "markets": [
+      "base-v3"
+    ]
+  },
+  {
+    "symbol": "GHO",
+    "address": "0x7dff72693f6a4149b17e7c6314655f6a9f7c8b33",
+    "markets": [
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "LUSD",
+    "address": "0x5f98805a4e8be255a32880fdec7f6728c6568ba0",
+    "markets": [
+      "ethereum-v3"
+    ]
+  },
+  {
+    "symbol": "LUSD",
+    "address": "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819",
+    "markets": [
+      "optimism-v3"
+    ]
+  },
+  {
+    "symbol": "LUSD",
+    "address": "0x93b346b6bc2548da6a1e7d98e9a421b42541425b",
+    "markets": [
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "PYUSD",
+    "address": "0x6c3ea9036406852006290770bedfcaba0e23a0e8",
+    "markets": [
+      "ethereum-v3",
+      "ethereum-ether-fi-v3"
+    ]
+  },
+  {
+    "symbol": "RLUSD",
+    "address": "0x8292bb45bf1ee4d140127049757c2e0ff06317ed",
+    "markets": [
+      "ethereum-v3",
+      "ethereum-horizon-v3"
+    ]
+  },
+  {
     "symbol": "USDC",
     "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    "markets": ["ethereum-v3"]
+    "markets": [
+      "ethereum-v3",
+      "ethereum-ether-fi-v3",
+      "ethereum-lido-v3",
+      "ethereum-horizon-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+    "markets": [
+      "optimism-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
+    "markets": [
+      "optimism-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+    "markets": [
+      "bnb-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0xddafbb505ad214d7b80b1f830fccc89b60fb7a83",
+    "markets": [
+      "gnosis-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+    "markets": [
+      "polygon-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+    "markets": [
+      "polygon-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x29219dd400f2bf60e5a23d13be72b486d4038894",
+    "markets": [
+      "sonic-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x1d17cbcf0d6d143135ae902365d2e5e2a16538d4",
+    "markets": [
+      "zk-sync-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "markets": [
+      "base-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
+    "markets": [
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    "markets": [
+      "arbitrum-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0xceba9300f2b948710d2653dd7b07f33a8b32118c",
+    "markets": [
+      "celo-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+    "markets": [
+      "avalanche-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x2d270e6886d130d724215a266106e6832161eaed",
+    "markets": [
+      "ink-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
+    "markets": [
+      "linea-v3"
+    ]
+  },
+  {
+    "symbol": "USDC",
+    "address": "0x06efdbff2a14a7c8e15944d1f4a48f9f95f663a4",
+    "markets": [
+      "scroll-v3"
+    ]
+  },
+  {
+    "symbol": "USDG",
+    "address": "0xe343167631d89b6ffc58b88d6b7fb0228795491d",
+    "markets": [
+      "ethereum-v3",
+      "ink-v3"
+    ]
+  },
+  {
+    "symbol": "USDS",
+    "address": "0xdc035d45d973e3ec169d2276ddab16f1e407384f",
+    "markets": [
+      "ethereum-v3",
+      "ethereum-lido-v3"
+    ]
+  },
+  {
+    "symbol": "USDt",
+    "address": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7",
+    "markets": [
+      "avalanche-v3"
+    ]
   },
   {
     "symbol": "USDT",
     "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
-    "markets": ["ethereum-v3"]
+    "markets": [
+      "ethereum-v3"
+    ]
   },
   {
-    "symbol": "DAI",
-    "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
-    "markets": ["ethereum-v3"]
+    "symbol": "USDT",
+    "address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+    "markets": [
+      "optimism-v3"
+    ]
+  },
+  {
+    "symbol": "USDT",
+    "address": "0x55d398326f99059ff775485246999027b3197955",
+    "markets": [
+      "bnb-v3"
+    ]
+  },
+  {
+    "symbol": "USDT",
+    "address": "0x493257fd37edb34451f62edf8d2a0c418852ba4c",
+    "markets": [
+      "zk-sync-v3"
+    ]
+  },
+  {
+    "symbol": "USDT",
+    "address": "0x3a337a6ada9d885b6ad95ec48f9b75f197b5ae35",
+    "markets": [
+      "soneium-v3"
+    ]
+  },
+  {
+    "symbol": "USDT",
+    "address": "0xa219439258ca9da29e9cc4ce5596924745e12b93",
+    "markets": [
+      "linea-v3"
+    ]
+  },
+  {
+    "symbol": "USDT0",
+    "address": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+    "markets": [
+      "polygon-v3"
+    ]
+  },
+  {
+    "symbol": "USDT0",
+    "address": "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb",
+    "markets": [
+      "plasma-v3"
+    ]
   }
 ]
