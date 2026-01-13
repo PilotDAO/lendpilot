@@ -1,0 +1,710 @@
+openapi: 3.1.0
+info:
+  title: Aavescan Clone BFF API
+  version: 1.0.0
+  description: Backend-for-Frontend API for Aave protocol analytics platform
+  contact:
+    name: API Documentation
+    url: /api
+
+servers:
+  - url: /api/v1
+    description: BFF API v1
+
+tags:
+  - name: Markets
+    description: Market configuration and overview
+  - name: Reserves
+    description: Asset/reserve data and snapshots
+  - name: Timeseries
+    description: Historical time series data
+
+paths:
+  /markets:
+    get:
+      tags:
+        - Markets
+      summary: Get all available markets
+      description: Returns list of configured markets from markets.json
+      operationId: getMarkets
+      responses:
+        '200':
+          description: List of markets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  markets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Market'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /market/{marketKey}:
+    get:
+      tags:
+        - Markets
+      summary: Get market live data
+      description: Returns current state of all assets in a market
+      operationId: getMarket
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Market identifier (e.g., ethereum-v3)
+      responses:
+        '200':
+          description: Market data with reserves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /market/{marketKey}/timeseries:
+    get:
+      tags:
+        - Timeseries
+      summary: Get market time series
+      description: Returns historical market totals for compound-style block
+      operationId: getMarketTimeseries
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: window
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [30d, 6m, 1y]
+          description: Time window for data
+      responses:
+        '200':
+          description: Time series data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeseriesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reserve/{marketKey}/{underlying}:
+    get:
+      tags:
+        - Reserves
+      summary: Get reserve page data
+      description: Returns live data and historical snapshots for an asset
+      operationId: getReserve
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: underlying
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-f0-9]{40}$'
+          description: Asset address (lowercase)
+      responses:
+        '200':
+          description: Reserve data with history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReserveResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reserve/{marketKey}/{underlying}/snapshots/daily:
+    get:
+      tags:
+        - Reserves
+      summary: Get daily snapshots
+      description: Returns daily snapshots for an asset
+      operationId: getDailySnapshots
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: underlying
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-f0-9]{40}$'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 90
+          description: Number of days to retrieve
+      responses:
+        '200':
+          description: Daily snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DailySnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reserve/{marketKey}/{underlying}/snapshots/daily.csv:
+    get:
+      tags:
+        - Reserves
+      summary: Export daily snapshots as CSV
+      description: Returns CSV file with daily snapshot data
+      operationId: exportDailySnapshotsCSV
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: underlying
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-f0-9]{40}$'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 90
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv; charset=utf-8:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reserve/{marketKey}/{underlying}/snapshots/monthly:
+    get:
+      tags:
+        - Reserves
+      summary: Get monthly snapshots
+      description: Returns monthly snapshots for an asset
+      operationId: getMonthlySnapshots
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: underlying
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-f0-9]{40}$'
+        - name: months
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 60
+            default: 24
+      responses:
+        '200':
+          description: Monthly snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MonthlySnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reserve/{marketKey}/{underlying}/snapshots/monthly.csv:
+    get:
+      tags:
+        - Reserves
+      summary: Export monthly snapshots as CSV
+      description: Returns CSV file with monthly snapshot data
+      operationId: exportMonthlySnapshotsCSV
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: underlying
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-f0-9]{40}$'
+        - name: months
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 60
+            default: 24
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv; charset=utf-8:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reserve/{marketKey}/{underlying}/liquidity-impact:
+    get:
+      tags:
+        - Reserves
+      summary: Get liquidity impact scenarios
+      description: Returns calculated liquidity impact for different transaction scenarios
+      operationId: getLiquidityImpact
+      parameters:
+        - name: marketKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: underlying
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-f0-9]{40}$'
+      responses:
+        '200':
+          description: Liquidity impact scenarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scenarios:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LiquidityImpactScenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Market:
+      type: object
+      required:
+        - marketKey
+        - displayName
+        - poolAddress
+        - subgraphId
+        - chainId
+        - rpcUrls
+      properties:
+        marketKey:
+          type: string
+          description: URL-friendly identifier
+          example: ethereum-v3
+        displayName:
+          type: string
+          example: Ethereum V3
+        poolAddress:
+          type: string
+          pattern: '^0x[a-f0-9]{40}$'
+          example: '0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2'
+        subgraphId:
+          type: string
+          example: Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g
+        chainId:
+          type: integer
+          example: 1
+        rpcUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          minItems: 1
+
+    Reserve:
+      type: object
+      required:
+        - underlyingAsset
+        - symbol
+        - name
+        - decimals
+        - marketKey
+        - currentState
+      properties:
+        underlyingAsset:
+          type: string
+          pattern: '^0x[a-f0-9]{40}$'
+        symbol:
+          type: string
+        name:
+          type: string
+        decimals:
+          type: integer
+          minimum: 0
+          maximum: 18
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        marketKey:
+          type: string
+        currentState:
+          $ref: '#/components/schemas/ReserveCurrentState'
+
+    ReserveCurrentState:
+      type: object
+      required:
+        - supplyAPR
+        - borrowAPR
+        - utilizationRate
+        - oraclePrice
+        - totalSuppliedUSD
+        - totalBorrowedUSD
+      properties:
+        suppliedTokens:
+          type: string
+          description: BigNumber as string
+        borrowedTokens:
+          type: string
+          description: BigNumber as string
+        availableLiquidity:
+          type: string
+          description: BigNumber as string
+        supplyAPR:
+          type: number
+          description: APR as decimal (e.g., 0.05 for 5%)
+        borrowAPR:
+          type: number
+          description: APR as decimal
+        utilizationRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Utilization rate as decimal
+        oraclePrice:
+          type: number
+          description: Price in USD
+        totalSuppliedUSD:
+          type: number
+        totalBorrowedUSD:
+          type: number
+
+    MarketResponse:
+      type: object
+      required:
+        - reserves
+        - totals
+      properties:
+        reserves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reserve'
+        totals:
+          $ref: '#/components/schemas/MarketTotals'
+
+    MarketTotals:
+      type: object
+      required:
+        - totalSupply
+        - supply
+        - borrowing
+        - assetCount
+      properties:
+        totalSupply:
+          type: number
+          description: Total supplied in USD
+        supply:
+          type: number
+          description: Available liquidity in USD
+        borrowing:
+          type: number
+          description: Total borrowed in USD
+        assetCount:
+          type: integer
+
+    TimeseriesResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required:
+              - date
+              - totalSupply
+              - supply
+              - borrowing
+            properties:
+              date:
+                type: string
+                format: date
+                example: '2026-01-11'
+              totalSupply:
+                type: number
+              supply:
+                type: number
+              borrowing:
+                type: number
+
+    ReserveResponse:
+      type: object
+      required:
+        - live
+        - history
+      properties:
+        live:
+          $ref: '#/components/schemas/Reserve'
+        history:
+          type: object
+          properties:
+            averageLendingRates:
+              $ref: '#/components/schemas/AverageLendingRates'
+            dailySnapshots:
+              type: array
+              items:
+                $ref: '#/components/schemas/DailySnapshot'
+            monthlySnapshots:
+              type: array
+              items:
+                $ref: '#/components/schemas/MonthlySnapshot'
+
+    AverageLendingRates:
+      type: object
+      properties:
+        supplyAPR:
+          type: object
+          properties:
+            '1d':
+              type: number
+              nullable: true
+            '7d':
+              type: number
+              nullable: true
+            '30d':
+              type: number
+              nullable: true
+            '6m':
+              type: number
+              nullable: true
+            '1y':
+              type: number
+              nullable: true
+        borrowAPR:
+          type: object
+          properties:
+            '1d':
+              type: number
+              nullable: true
+            '7d':
+              type: number
+              nullable: true
+            '30d':
+              type: number
+              nullable: true
+            '6m':
+              type: number
+              nullable: true
+            '1y':
+              type: number
+              nullable: true
+
+    DailySnapshot:
+      type: object
+      required:
+        - date
+        - blockNumber
+        - metrics
+      properties:
+        date:
+          type: string
+          format: date
+        blockNumber:
+          type: integer
+        blockTimestamp:
+          type: integer
+        metrics:
+          type: object
+          required:
+            - priceUSD
+            - suppliedTokens
+            - borrowedTokens
+            - totalSuppliedUSD
+            - totalBorrowedUSD
+            - utilizationRate
+            - supplyAPR
+            - borrowAPR
+          properties:
+            priceUSD:
+              type: number
+            suppliedTokens:
+              type: number
+            borrowedTokens:
+              type: number
+            totalSuppliedUSD:
+              type: number
+            totalBorrowedUSD:
+              type: number
+            utilizationRate:
+              type: number
+              minimum: 0
+              maximum: 1
+            supplyAPR:
+              type: number
+            borrowAPR:
+              type: number
+
+    MonthlySnapshot:
+      type: object
+      required:
+        - month
+        - metrics
+      properties:
+        month:
+          type: string
+          format: date
+          example: '2026-01'
+        metrics:
+          $ref: '#/components/schemas/DailySnapshot/properties/metrics'
+
+    LiquidityImpactScenario:
+      type: object
+      required:
+        - action
+        - amountUSD
+        - projectedState
+      properties:
+        action:
+          type: string
+          enum: [Deposit, Borrow, Repay, Withdraw]
+        amountUSD:
+          type: number
+          description: Amount in USD (e.g., 100000000 for $100M)
+        projectedState:
+          type: object
+          required:
+            - newUtilization
+            - newSupplyAPR
+            - newBorrowAPR
+            - deltaUtilization
+            - deltaSupplyAPR
+            - deltaBorrowAPR
+          properties:
+            newUtilization:
+              type: number
+              minimum: 0
+              maximum: 1
+            newSupplyAPR:
+              type: number
+            newBorrowAPR:
+              type: number
+            deltaUtilization:
+              type: number
+              description: Change in utilization (e.g., 0.05 for +5%)
+            deltaSupplyAPR:
+              type: number
+              description: Change in supply APR (as decimal)
+            deltaBorrowAPR:
+              type: number
+              description: Change in borrow APR (as decimal)
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: INVALID_MARKET
+            message:
+              type: string
+              example: Invalid market key provided
+            details:
+              type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INVALID_ADDRESS
+              message: Invalid asset address format
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: MARKET_NOT_FOUND
+              message: Market not found
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: An internal error occurred

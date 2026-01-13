@@ -1,0 +1,16 @@
+schema:
+  - https://api.v3.aave.com/graphql:
+      headers:
+        Content-Type: application/json
+generates:
+  lib/types/generated/aavekit.ts:
+    documents: []
+    plugins:
+      - typescript
+      - typescript-operations
+      - typescript-graphql-request
+    config:
+      scalars:
+        BigInt: string
+        BigDecimal: string
+        Bytes: string

@@ -1,0 +1,37 @@
+{
+  "default": [
+    {
+      "action": "Deposit",
+      "amount": "100000000"
+    },
+    {
+      "action": "Borrow",
+      "amount": "100000000"
+    },
+    {
+      "action": "Deposit",
+      "amount": "250000000"
+    },
+    {
+      "action": "Borrow",
+      "amount": "250000000"
+    },
+    {
+      "action": "Deposit",
+      "amount": "500000000"
+    },
+    {
+      "action": "Borrow",
+      "amount": "500000000"
+    },
+    {
+      "action": "Deposit",
+      "amount": "1000000000"
+    },
+    {
+      "action": "Borrow",
+      "amount": "1000000000"
+    }
+  ],
+  "overrides": {}
+}

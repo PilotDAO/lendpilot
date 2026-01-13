@@ -1,0 +1,64 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Golden Airplane - positioned upper left, angled upward and right -->
+  <g transform="translate(2, 3) rotate(15 14 8)">
+    <!-- Fuselage -->
+    <ellipse
+      cx="6"
+      cy="8"
+      rx="2.5"
+      ry="6"
+      fill="url(#goldGradient)"
+    />
+    <!-- Wings -->
+    <path
+      d="M1 8 L6 6 L11 8 L6 10 Z"
+      fill="url(#goldGradient)"
+    />
+    <!-- Tail -->
+    <path
+      d="M6 1 L5 6 L6 8 L7 6 Z"
+      fill="url(#goldGradientDark)"
+    />
+    <!-- Nose -->
+    <circle
+      cx="6"
+      cy="5"
+      r="1.2"
+      fill="url(#goldGradientLight)"
+    />
+  </g>
+
+  <!-- Three green candlestick charts - positioned below and to the right -->
+  <g transform="translate(14, 18)">
+    <!-- First candlestick (left, smallest) -->
+    <rect x="0" y="3" width="2" height="3" fill="#10B981" />
+    <line x1="1" y1="0" x2="1" y2="3" stroke="#10B981" strokeWidth="0.6" />
+    <line x1="1" y1="6" x2="1" y2="8" stroke="#10B981" strokeWidth="0.6" />
+    
+    <!-- Second candlestick (middle, medium) -->
+    <rect x="3" y="1.5" width="2" height="4.5" fill="#10B981" />
+    <line x1="4" y1="0" x2="4" y2="1.5" stroke="#10B981" strokeWidth="0.6" />
+    <line x1="4" y1="6" x2="4" y2="9" stroke="#10B981" strokeWidth="0.6" />
+    
+    <!-- Third candlestick (right, tallest) -->
+    <rect x="6" y="0" width="2" height="6" fill="#10B981" />
+    <line x1="7" y1="0" x2="7" y2="0" stroke="#10B981" strokeWidth="0.6" />
+    <line x1="7" y1="6" x2="7" y2="11" stroke="#10B981" strokeWidth="0.6" />
+  </g>
+
+  <defs>
+    <linearGradient id="goldGradient" x1="4" y1="1" x2="9" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FCD34D" />
+      <stop offset="50%" stopColor="#F59E0B" />
+      <stop offset="100%" stopColor="#D97706" />
+    </linearGradient>
+    <linearGradient id="goldGradientDark" x1="5" y1="1" x2="7" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#D97706" />
+      <stop offset="100%" stopColor="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="goldGradientLight" x1="5" y1="3.5" x2="7" y2="6.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FDE68A" />
+      <stop offset="100%" stopColor="#FCD34D" />
+    </linearGradient>
+  </defs>
+</svg>

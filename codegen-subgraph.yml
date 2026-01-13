@@ -1,0 +1,16 @@
+schema:
+  - https://gateway.thegraph.com/api/${GRAPH_API_KEY}/subgraphs/id/${AAVE_SUBGRAPH_ID}:
+      headers:
+        Authorization: Bearer ${GRAPH_API_KEY}
+generates:
+  lib/types/generated/subgraph.ts:
+    documents: []
+    plugins:
+      - typescript
+      - typescript-operations
+      - typescript-graphql-request
+    config:
+      scalars:
+        BigInt: string
+        BigDecimal: string
+        Bytes: string

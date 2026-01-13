@@ -1,0 +1,70 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Market timeseries data for charts (pre-aggregated)
+model MarketTimeseries {
+  id        String   @id @default(cuid())
+  marketKey String
+  date      DateTime @db.Date
+  window    String   // "30d", "6m", "1y"
+  
+  totalSuppliedUSD      Float
+  totalBorrowedUSD      Float
+  availableLiquidityUSD Float
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([marketKey, date, window])
+  @@index([marketKey, window, date])
+  @@index([marketKey, window])
+  @@map("market_timeseries")
+}
+
+// Asset snapshots for historical data
+model AssetSnapshot {
+  id             String   @id @default(cuid())
+  marketKey      String
+  underlyingAsset String  @db.VarChar(42) // Ethereum address
+  date           DateTime @db.Date
+  
+  // Block information
+  blockNumber    BigInt
+  timestamp      BigInt   // Unix timestamp in seconds
+  
+  // Token amounts (as strings to preserve precision)
+  suppliedTokens    String
+  borrowedTokens     String
+  availableLiquidity String
+  
+  // APR and rates
+  supplyAPR         Float
+  borrowAPR         Float
+  utilizationRate   Float
+  
+  // Price and USD values
+  oraclePrice       Float
+  totalSuppliedUSD  Float
+  totalBorrowedUSD  Float
+  
+  // Indices for APR calculation
+  liquidityIndex      String  // BigNumber as string
+  variableBorrowIndex  String  // BigNumber as string
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([marketKey, underlyingAsset, date])
+  @@index([marketKey, underlyingAsset, date])
+  @@index([marketKey, date])
+  @@index([marketKey, underlyingAsset])
+  @@map("asset_snapshots")
+}

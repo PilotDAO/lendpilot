@@ -1,0 +1,254 @@
+[
+  {
+    "marketKey": "ethereum-v3",
+    "displayName": "AaveV3Ethereum",
+    "poolAddress": "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+    "subgraphId": "Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g",
+    "chainId": 1,
+    "rpcUrls": [
+      "https://eth.drpc.org",
+      "https://eth.llamarpc.com",
+      "https://rpc.ankr.com/eth",
+      "https://ethereum-rpc.publicnode.com"
+    ],
+    "url": "https://aavescan.com/markets/ethereum-v3"
+  },
+  {
+    "marketKey": "ethereum-ether-fi-v3",
+    "displayName": "AaveV3EthereumEtherFi",
+    "poolAddress": "0x0aa97c284e98396202b6a04024f5e2c65026f3c0",
+    "subgraphId": "8o4HGApJkAqnvxAHShG4w5xiXihHyL7HkeDdQdRUYmqZ",
+    "chainId": 1,
+    "rpcUrls": [
+      "https://eth.drpc.org",
+      "https://eth.llamarpc.com",
+      "https://rpc.ankr.com/eth",
+      "https://ethereum-rpc.publicnode.com"
+    ],
+    "url": "https://aavescan.com/markets/ethereum-ether-fi-v3"
+  },
+  {
+    "marketKey": "ethereum-lido-v3",
+    "displayName": "AaveV3EthereumLido",
+    "poolAddress": "0x4e033931ad43597d96d6bcc25c280717730b58b1",
+    "subgraphId": "5vxMbXRhG1oQr55MWC5j6qg78waWujx1wjeuEWDA6j3",
+    "chainId": 1,
+    "rpcUrls": [
+      "https://eth.drpc.org",
+      "https://eth.llamarpc.com",
+      "https://rpc.ankr.com/eth",
+      "https://ethereum-rpc.publicnode.com"
+    ],
+    "url": "https://aavescan.com/markets/ethereum-lido-v3"
+  },
+  {
+    "marketKey": "ethereum-horizon-v3",
+    "displayName": "AaveV3EthereumHorizon",
+    "poolAddress": "0xae05cd22df81871bc7cc2a04becfb516bfe332c8",
+    "subgraphId": "Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g",
+    "chainId": 1,
+    "rpcUrls": [
+      "https://eth.drpc.org",
+      "https://eth.llamarpc.com",
+      "https://rpc.ankr.com/eth",
+      "https://ethereum-rpc.publicnode.com"
+    ],
+    "url": "https://aavescan.com/markets/ethereum-horizon-v3"
+  },
+  {
+    "marketKey": "optimism-v3",
+    "displayName": "AaveV3Optimism",
+    "poolAddress": "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+    "subgraphId": "DSfLz8oQBUeU5atALgUFQKMTSYV9mZAVYp4noLSXAfvb",
+    "chainId": 10,
+    "rpcUrls": [
+      "https://mainnet.optimism.io",
+      "https://optimism.drpc.org",
+      "https://rpc.ankr.com/optimism"
+    ],
+    "url": "https://aavescan.com/markets/optimism-v3"
+  },
+  {
+    "marketKey": "bnb-v3",
+    "displayName": "AaveV3BNB",
+    "poolAddress": "0x6807dc923806fe8fd134338eabca509979a7e0cb",
+    "subgraphId": "7Jk85XgkV1MQ7u56hD8rr65rfASbayJXopugWkUoBMnZ",
+    "chainId": 56,
+    "rpcUrls": [
+      "https://bsc-dataseed1.binance.org",
+      "https://bsc.drpc.org",
+      "https://rpc.ankr.com/bsc"
+    ],
+    "url": "https://aavescan.com/markets/bnb-v3"
+  },
+  {
+    "marketKey": "gnosis-v3",
+    "displayName": "AaveV3Gnosis",
+    "poolAddress": "0xb50201558b00496a145fe76f7424749556e326d8",
+    "subgraphId": "HtcDaL8L8iZ2KQNNS44EBVmLruzxuNAz1RkBYdui1QUT",
+    "chainId": 100,
+    "rpcUrls": [
+      "https://rpc.gnosischain.com",
+      "https://gnosis.drpc.org"
+    ],
+    "url": "https://aavescan.com/markets/gnosis-v3"
+  },
+  {
+    "marketKey": "polygon-v3",
+    "displayName": "AaveV3Polygon",
+    "poolAddress": "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+    "subgraphId": "Co2URyXjnxaw8WqxKyVHdirq9Ahhm5vcTs4dMedAq211",
+    "chainId": 137,
+    "rpcUrls": [
+      "https://polygon-rpc.com",
+      "https://polygon.drpc.org",
+      "https://rpc.ankr.com/polygon"
+    ],
+    "url": "https://aavescan.com/markets/polygon-v3"
+  },
+  {
+    "marketKey": "sonic-v3",
+    "displayName": "AaveV3Sonic",
+    "poolAddress": "0x5362dbb1e601abf3a4c14c22ffeda64042e5eaa3",
+    "subgraphId": "FQcacc4ZJaQVS9euWb76nvpSq2GxavBnUM6DU6tmspbi",
+    "chainId": 146,
+    "rpcUrls": [
+      "https://rpc.sonic.game",
+      "https://sonic.drpc.org"
+    ],
+    "url": "https://aavescan.com/markets/sonic-v3"
+  },
+  {
+    "marketKey": "zk-sync-v3",
+    "displayName": "AaveV3ZkSync",
+    "poolAddress": "0x78e30497a3c7527d953c6b1e3541b021a98ac43c",
+    "subgraphId": "ENYSc8G3WvrbhWH8UZHrqPWYRcuyCaNmaTmoVp7uzabM",
+    "chainId": 324,
+    "rpcUrls": [
+      "https://mainnet.era.zksync.io",
+      "https://zksync.drpc.org",
+      "https://rpc.ankr.com/zksync_era"
+    ],
+    "url": "https://aavescan.com/markets/zk-sync-v3"
+  },
+  {
+    "marketKey": "metis-v3",
+    "displayName": "AaveV3Metis",
+    "poolAddress": "0x90df02551bb792286e8d4f13e0e357b4bf1d6a57",
+    "subgraphId": "",
+    "chainId": 1088,
+    "rpcUrls": [
+      "https://andromeda.metis.io/?owner=1088",
+      "https://metis.drpc.org"
+    ],
+    "url": "https://aavescan.com/markets/metis-v3"
+  },
+  {
+    "marketKey": "soneium-v3",
+    "displayName": "AaveV3Soneium",
+    "poolAddress": "0xdd3d7a7d03d9fd9ef45f3e587287922ef65ca38b",
+    "subgraphId": "5waxmqS3rkRtZPoV2mL5RCToupVxVbTd7hjicxMGebYm",
+    "chainId": 1868,
+    "rpcUrls": [
+      "https://rpc.soneium.org"
+    ],
+    "url": "https://aavescan.com/markets/soneium-v3"
+  },
+  {
+    "marketKey": "base-v3",
+    "displayName": "AaveV3Base",
+    "poolAddress": "0xa238dd80c259a72e81d7e4664a9801593f98d1c5",
+    "subgraphId": "GQFbb95cE6d8mV989mL5figjaGaKCQB3xqYrr1bRyXqF",
+    "chainId": 8453,
+    "rpcUrls": [
+      "https://mainnet.base.org",
+      "https://base.drpc.org",
+      "https://rpc.ankr.com/base"
+    ],
+    "url": "https://aavescan.com/markets/base-v3"
+  },
+  {
+    "marketKey": "plasma-v3",
+    "displayName": "AaveV3Plasma",
+    "poolAddress": "0x925a2a7214ed92428b5b1b090f80b25700095e12",
+    "subgraphId": "",
+    "chainId": 9745,
+    "rpcUrls": [
+      "https://rpc.plasma.dsolutions.build"
+    ],
+    "url": "https://aavescan.com/markets/plasma-v3"
+  },
+  {
+    "marketKey": "arbitrum-v3",
+    "displayName": "AaveV3Arbitrum",
+    "poolAddress": "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+    "subgraphId": "DLuE98kEb5pQNXAcKFQGQgfSQ57Xdou4jnVbAEqMfy3B",
+    "chainId": 42161,
+    "rpcUrls": [
+      "https://arb1.arbitrum.io/rpc",
+      "https://arbitrum.drpc.org",
+      "https://rpc.ankr.com/arbitrum"
+    ],
+    "url": "https://aavescan.com/markets/arbitrum-v3"
+  },
+  {
+    "marketKey": "celo-v3",
+    "displayName": "AaveV3Celo",
+    "poolAddress": "0x3e59a31363e2ad014dcbc521c4a0d5757d9f3402",
+    "subgraphId": "GAVWZzGwQ6d6QbFojyFWxpZ2GB9Rf5hZgGyJHCEry8kn",
+    "chainId": 42220,
+    "rpcUrls": [
+      "https://forno.celo.org",
+      "https://celo.drpc.org"
+    ],
+    "url": "https://aavescan.com/markets/celo-v3"
+  },
+  {
+    "marketKey": "avalanche-v3",
+    "displayName": "AaveV3Avalanche",
+    "poolAddress": "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+    "subgraphId": "2h9woxy8RTjHu1HJsCEnmzpPHFArU33avmUh4f71JpVn",
+    "chainId": 43114,
+    "rpcUrls": [
+      "https://api.avax.network/ext/bc/C/rpc",
+      "https://avalanche.drpc.org",
+      "https://rpc.ankr.com/avalanche"
+    ],
+    "url": "https://aavescan.com/markets/avalanche-v3"
+  },
+  {
+    "marketKey": "ink-v3",
+    "displayName": "AaveV3Ink",
+    "poolAddress": "0x2816cf15f6d2a220e789aa011d5ee4eb6c47feba",
+    "subgraphId": "6AY9ccNwMwd3G27zp9vUKWCi9ugvNS6gkh5EEBY2xnPC",
+    "chainId": 57073,
+    "rpcUrls": [
+      "https://rpc.ink.xyz"
+    ],
+    "url": "https://aavescan.com/markets/ink-v3"
+  },
+  {
+    "marketKey": "linea-v3",
+    "displayName": "AaveV3Linea",
+    "poolAddress": "0xc47b8c00b0f69a36fa203ffeac0334874574a8ac",
+    "subgraphId": "Gz2kjnmRV1fQj3R8cssoZa5y9VTanhrDo4Mh7nWW1wHa",
+    "chainId": 59144,
+    "rpcUrls": [
+      "https://rpc.linea.build",
+      "https://linea.drpc.org"
+    ],
+    "url": "https://aavescan.com/markets/linea-v3"
+  },
+  {
+    "marketKey": "scroll-v3",
+    "displayName": "AaveV3Scroll",
+    "poolAddress": "0x11fcfe756c05ad438e312a7fd934381537d3cffe",
+    "subgraphId": "74JwenoHZb2aAYVGCCSdPWzi9mm745dyHyQQVoZ7Sbub",
+    "chainId": 534352,
+    "rpcUrls": [
+      "https://rpc.scroll.io",
+      "https://scroll.drpc.org"
+    ],
+    "url": "https://aavescan.com/markets/scroll-v3"
+  }
+]
