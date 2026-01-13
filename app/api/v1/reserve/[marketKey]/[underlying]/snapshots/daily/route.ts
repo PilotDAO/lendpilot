@@ -51,7 +51,19 @@ export async function GET(
     }
 
     // Transform to API format
-    const dailySnapshots: DailySnapshot[] = snapshots.map((snapshot) => ({
+    const dailySnapshots: DailySnapshot[] = snapshots.map((snapshot: {
+      date: Date;
+      timestamp: bigint;
+      blockNumber: bigint;
+      supplyAPR: number;
+      borrowAPR: number;
+      totalSuppliedUSD: number;
+      totalBorrowedUSD: number;
+      utilizationRate: number;
+      oraclePrice: number;
+      liquidityIndex: string;
+      variableBorrowIndex: string;
+    }) => ({
       date: snapshot.date.toISOString().split("T")[0],
       timestamp: Number(snapshot.timestamp),
       blockNumber: Number(snapshot.blockNumber),

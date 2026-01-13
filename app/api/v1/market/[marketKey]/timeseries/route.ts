@@ -67,7 +67,7 @@ export async function GET(
 
     // If we have data in DB, return it immediately
     if (dbData.length > 0) {
-      const transformed = dbData.map((row) => ({
+      const transformed = dbData.map((row: { date: Date; totalSuppliedUSD: number; totalBorrowedUSD: number; availableLiquidityUSD: number }) => ({
         date: row.date.toISOString().split('T')[0],
         totalSuppliedUSD: row.totalSuppliedUSD,
         totalBorrowedUSD: row.totalBorrowedUSD,
