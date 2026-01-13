@@ -91,9 +91,19 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
   // Calculate percentage change from first to last value for display
   const firstValue = values.length > 0 ? values[0] : 0;
   const lastValue = values.length > 0 ? values[values.length - 1] : 0;
-  const percentChange = firstValue !== 0 
-    ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 
-    : 0;
+  
+  // Calculate percentage change - handle edge cases properly
+  let percentChange = 0;
+  if (values.length > 1 && firstValue !== lastValue) {
+    if (Math.abs(firstValue) > 0.0001) {
+      // Normal case: calculate percentage change
+      percentChange = ((lastValue - firstValue) / Math.abs(firstValue)) * 100;
+    } else if (Math.abs(firstValue) <= 0.0001 && Math.abs(lastValue) > 0.0001) {
+      // Starting from near-zero: show as significant change
+      percentChange = lastValue > 0 ? 100 : -100;
+    }
+    // If both are effectively 0, percentChange stays 0
+  }
 
   const option = useMemo(
     () => ({
@@ -213,7 +223,7 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
             color: metric === "supplyAPR" ? "#10B981" : metric === "borrowAPR" ? "#F59E0B" : "#3B82F6",
           },
           areaStyle: {
-            opacity: 0.25,
+            opacity: 0.45,
             color: {
               type: "linear",
               x: 0,
@@ -224,18 +234,18 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
                 {
                   offset: 0,
                   color: metric === "supplyAPR" 
-                    ? "rgba(16, 185, 129, 0.4)" 
+                    ? "rgba(16, 185, 129, 0.7)" 
                     : metric === "borrowAPR" 
-                    ? "rgba(245, 158, 11, 0.4)" 
-                    : "rgba(59, 130, 246, 0.4)",
+                    ? "rgba(245, 158, 11, 0.7)" 
+                    : "rgba(59, 130, 246, 0.7)",
                 },
                 {
                   offset: 1,
                   color: metric === "supplyAPR" 
-                    ? "rgba(16, 185, 129, 0.08)" 
+                    ? "rgba(16, 185, 129, 0.2)" 
                     : metric === "borrowAPR" 
-                    ? "rgba(245, 158, 11, 0.08)" 
-                    : "rgba(59, 130, 246, 0.08)",
+                    ? "rgba(245, 158, 11, 0.2)" 
+                    : "rgba(59, 130, 246, 0.2)",
                 },
               ],
             },
@@ -349,11 +359,11 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
             </button>
           ))}
         </div>
-        {data.length > 1 && (
+        {data.length > 1 && !isNaN(percentChange) && isFinite(percentChange) && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500 dark:text-gray-400">Change:</span>
-            <span className={`font-semibold ${isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-              {isPositive ? "↑" : "↓"} {Math.abs(percentChange).toFixed(2)}%
+            <span className={`font-semibold ${isPositive && percentChange > 0 ? "text-green-600 dark:text-green-400" : percentChange < 0 ? "text-red-600 dark:text-red-400" : "text-gray-600 dark:text-gray-400"}`}>
+              {isPositive && percentChange > 0 ? "↑" : percentChange < 0 ? "↓" : "→"} {Math.abs(percentChange).toFixed(2)}%
             </span>
           </div>
         )}
