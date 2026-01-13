@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { MarketName } from "@/app/components/MarketName";
 
 interface AssetTopCardsProps {
@@ -97,7 +98,15 @@ export function AssetTopCards({ reserve, marketDisplayName, marketKey, contractA
               Market
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {marketDisplayName && (
+              {marketDisplayName && marketKey && (
+                <Link 
+                  href={`/${marketKey}`}
+                  className="flex items-center hover:opacity-80 transition-opacity"
+                >
+                  <MarketName displayName={marketDisplayName} marketKey={marketKey} logoSize={16} />
+                </Link>
+              )}
+              {marketDisplayName && !marketKey && (
                 <div className="flex items-center">
                   <MarketName displayName={marketDisplayName} marketKey={marketKey} logoSize={16} />
                 </div>
