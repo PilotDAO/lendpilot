@@ -45,12 +45,21 @@ const metricIcons: Record<ChartMetric, string> = {
 
 export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
   // Track visible data range from dataZoom
-  const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(null);
+  // Initialize with default range (showing last 30 days if dataZoom is enabled)
+  const getInitialRange = useMemo(() => {
+    if (data.length > 30) {
+      const start = Math.max(0, 100 - (30 / data.length) * 100);
+      return { start, end: 100 };
+    }
+    return null; // Show all data if <= 30 points
+  }, [data.length]);
+  
+  const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(getInitialRange);
 
   // Reset visible range when metric or data changes
   useEffect(() => {
-    setVisibleRange(null);
-  }, [metric, data.length]);
+    setVisibleRange(getInitialRange);
+  }, [metric, data.length, getInitialRange]);
 
   const chartData = useMemo(() => {
     return data.map((item) => {
@@ -86,9 +95,10 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
     if (!visibleRange) {
       return chartData;
     }
-    const start = Math.floor((visibleRange.start / 100) * chartData.length);
-    const end = Math.ceil((visibleRange.end / 100) * chartData.length);
-    return chartData.slice(start, end);
+    const startIndex = Math.max(0, Math.floor((visibleRange.start / 100) * chartData.length));
+    const endIndex = Math.min(chartData.length, Math.ceil((visibleRange.end / 100) * chartData.length));
+    const sliced = chartData.slice(startIndex, endIndex);
+    return sliced.length > 0 ? sliced : chartData;
   }, [chartData, visibleRange]);
 
   // Calculate min/max for better Y-axis scaling to show changes more clearly
@@ -113,30 +123,44 @@ export function MainChart({ data, metric, onMetricChange }: MainChartProps) {
   // Calculate percentage change - handle edge cases properly
   let percentChange = 0;
   if (values.length > 1 && firstValue !== lastValue) {
+    const diff = lastValue - firstValue;
+    
     if (Math.abs(firstValue) > 0.0001) {
       // Normal case: calculate percentage change
-      percentChange = ((lastValue - firstValue) / Math.abs(firstValue)) * 100;
+      percentChange = (diff / Math.abs(firstValue)) * 100;
     } else if (Math.abs(firstValue) <= 0.0001 && Math.abs(lastValue) > 0.0001) {
       // Starting from near-zero: show as significant change
       percentChange = lastValue > 0 ? 100 : -100;
+    } else if (firstValue !== 0 && Math.abs(lastValue) <= 0.0001) {
+      // Going to zero: -100%
+      percentChange = -100;
     }
-    // If both are effectively 0, percentChange stays 0
+    // If both are effectively 0 or equal, percentChange stays 0
   }
 
   // Handle dataZoom events to update visible range
   const onEvents = useMemo(() => ({
     dataZoom: (params: any) => {
-      if (params.batch && params.batch.length > 0) {
+      // Handle both single and batch events
+      let start = 0;
+      let end = 100;
+      
+      if (params.batch && Array.isArray(params.batch) && params.batch.length > 0) {
+        // Batch event (multiple dataZoom components)
         const zoom = params.batch[0];
-        setVisibleRange({
-          start: zoom.start || 0,
-          end: zoom.end || 100,
-        });
+        if (zoom.start !== undefined && zoom.end !== undefined) {
+          start = zoom.start;
+          end = zoom.end;
+        }
       } else if (params.start !== undefined && params.end !== undefined) {
-        setVisibleRange({
-          start: params.start,
-          end: params.end,
-        });
+        // Single event
+        start = params.start;
+        end = params.end;
+      }
+      
+      // Ensure valid range
+      if (start >= 0 && end <= 100 && start < end) {
+        setVisibleRange({ start, end });
       }
     },
   }), []);
