@@ -70,9 +70,10 @@ export async function GET(
       imageUrl: reserve.imageUrl,
       currentState: {
         ...reserve.currentState,
-        liquidityIndex: reserve.currentState.liquidityIndex || "0",
-        variableBorrowIndex: reserve.currentState.variableBorrowIndex || "0",
-        lastUpdateTimestamp: reserve.currentState.lastUpdateTimestamp || 0,
+        // These fields are not in DB currentState, set defaults
+        liquidityIndex: "0",
+        variableBorrowIndex: "0",
+        lastUpdateTimestamp: 0,
       },
     };
 

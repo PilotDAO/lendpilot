@@ -89,13 +89,14 @@ async function fetchReserveData(
       imageUrl: reserve.imageUrl,
       currentState: {
         ...reserve.currentState,
-        liquidityIndex: reserve.currentState.liquidityIndex || "0",
-        variableBorrowIndex: reserve.currentState.variableBorrowIndex || "0",
-        lastUpdateTimestamp: reserve.currentState.lastUpdateTimestamp || 0,
+        // These fields are not in DB currentState, set defaults
+        liquidityIndex: "0",
+        variableBorrowIndex: "0",
+        lastUpdateTimestamp: 0,
       },
     };
 
-    liveDataCache.set(cacheKey, reserveData);
+    liveDataCache.set(cacheKey, reserveData as unknown as Record<string, unknown>);
     return reserveData;
   } catch (error) {
     console.error(`Error fetching reserve ${marketKey}/${normalizedAddress}:`, error);

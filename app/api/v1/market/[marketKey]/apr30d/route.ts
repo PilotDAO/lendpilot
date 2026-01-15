@@ -100,7 +100,6 @@ export async function GET(
 
     return NextResponse.json({
       marketKey,
-      dataSource,
       cutoffDate: cutoffDate.toISOString().split("T")[0],
       seriesByUnderlying,
       statsByUnderlying,
