@@ -4,7 +4,6 @@ import { validateMarketKey } from "@/lib/utils/market";
 import { createErrorResponse, ErrorCodes } from "@/lib/utils/errors";
 import { rateLimitMiddleware } from "@/lib/middleware/rate-limit";
 import { calculateMarketTrends } from "@/lib/calculations/trends";
-import { getDataSourceForMarket } from "@/lib/utils/data-source";
 import { getDaysForWindow, TimeWindow } from "@/lib/types/timeframes";
 
 function expectedDaysForWindow(window: "7d" | "30d" | "3m" | "6m" | "1y"): number {
@@ -56,8 +55,8 @@ export async function GET(
   }
 
   try {
-    const dataSource = getDataSourceForMarket(marketKey);
-
+    // Historical data can come from 'subgraph' or 'aavekit' in DB
+    // Check both sources for historical data
     // Calculate cutoff date for the window (only last N days)
     const expectedDays = expectedDaysForWindow(window);
     const cutoffDate = new Date();
@@ -67,11 +66,12 @@ export async function GET(
     // Strategy: Data is stored once (with window="1y" for compatibility)
     // Filter by date only - window parameter is just for filtering, not for storage
     // This avoids data duplication: one record per marketKey+date+dataSource
+    // Historical data can be from 'subgraph' or 'aavekit' source
     const allDbData = await prisma.marketTimeseries.findMany({
       where: {
         marketKey,
         window: '1y', // All data is stored with window="1y" - filtering is by date only
-        dataSource,
+        dataSource: { in: ['subgraph', 'aavekit'] }, // Check both sources
       },
       orderBy: {
         date: 'asc',
@@ -113,7 +113,7 @@ export async function GET(
         data: transformed,
         marketKey,
         source: 'database',
-        dataSourceUsed: dataSource,
+        dataSourceUsed: 'mixed', // Can be from 'subgraph' or 'aavekit'
         metadata: {
           window,
           expectedDays,
@@ -127,27 +127,26 @@ export async function GET(
       });
     }
 
-    // Fallback logic based on data source
-    if (dataSource === 'subgraph') {
-      // For Ethereum V3: fallback to Subgraph
-      // For 1y window, don't try Subgraph fallback (too slow, 365 requests)
-      if (window === "1y") {
-        console.warn(`⚠️  No DB data for ${marketKey} (${window}). 1y data requires database sync.`);
-        return NextResponse.json({
-          data: [],
-          marketKey,
-          source: 'database',
-          dataSourceUsed: dataSource,
-          message: '1y data is not available yet. Please run data sync.',
-        });
-      }
+    // Fallback: All markets can use Subgraph for historical data if not in DB
+    // Historical data comes from Subgraph (as per original spec)
+    // For 1y window, don't try Subgraph fallback (too slow, 365 requests)
+    if (window === "1y") {
+      console.warn(`⚠️  No DB data for ${marketKey} (${window}). 1y data requires database sync.`);
+      return NextResponse.json({
+        data: [],
+        marketKey,
+        source: 'database',
+        dataSourceUsed: 'mixed',
+        message: '1y data is not available yet. Please run data sync.',
+      });
+    }
 
-      // Fallback: Calculate from Subgraph if DB is empty (slow path)
-      console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
-      
-      try {
-        const trendsData = await calculateMarketTrends(marketKey, window);
-      
+    // Fallback: Calculate from Subgraph if DB is empty (slow path)
+    console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
+    
+    try {
+      const trendsData = await calculateMarketTrends(marketKey, window);
+    
       if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
         // Return empty array instead of error for better UX
         return NextResponse.json({
@@ -159,40 +158,21 @@ export async function GET(
         });
       }
 
-        return NextResponse.json({
-          data: trendsData.data,
-          marketKey,
-          source: 'subgraph',
-          dataSourceUsed: 'subgraph',
-        });
-      } catch (subgraphError) {
-        // If Subgraph fails, return empty array instead of error
-        console.error(`Subgraph fallback failed for ${marketKey} (${window}):`, subgraphError);
-        return NextResponse.json({
-          data: [],
-          marketKey,
-          source: 'subgraph',
-          dataSourceUsed: 'subgraph',
-          message: `Failed to fetch data from Subgraph for ${window}`,
-        });
-      }
-    } else {
-      // For AaveKit markets: data should be collected via cron
-      // Return empty array - data will be available after first sync
-      console.warn(`⚠️  No DB data for ${marketKey} (${window}). Data will be available after AaveKit sync runs.`);
+      return NextResponse.json({
+        data: trendsData.data,
+        marketKey,
+        source: 'subgraph',
+        dataSourceUsed: 'subgraph',
+      });
+    } catch (subgraphError) {
+      // If Subgraph fails, return empty array instead of error
+      console.error(`Subgraph fallback failed for ${marketKey} (${window}):`, subgraphError);
       return NextResponse.json({
         data: [],
         marketKey,
-        source: 'aavekit',
-        dataSourceUsed: dataSource,
-        metadata: {
-          window,
-          expectedDays: expectedDaysForWindow(window),
-          actualDays: 0,
-          coveragePercent: 0,
-          dateRange: null,
-        },
-        message: `Data will be available after AaveKit sync runs.`,
+        source: 'subgraph',
+        dataSourceUsed: 'subgraph',
+        message: `Failed to fetch data from Subgraph for ${window}`,
       });
     }
   } catch (error) {

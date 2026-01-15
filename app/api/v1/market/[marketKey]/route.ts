@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryReserves } from "@/lib/api/aavekit";
-import { normalizeAddress } from "@/lib/utils/address";
+import { getMarketReservesFromDB } from "@/lib/api/db-market-data";
 import { validateMarketKey, getMarket } from "@/lib/utils/market";
-import {
-  calculateTotalSuppliedUSD,
-  calculateTotalBorrowedUSD,
-  calculateMarketTotals,
-  priceToUSD,
-} from "@/lib/calculations/totals";
+import { calculateMarketTotals } from "@/lib/calculations/totals";
 import { liveDataCache } from "@/lib/cache/cache-instances";
 import { createErrorResponse, ErrorCodes } from "@/lib/utils/errors";
-import { withRetry } from "@/lib/utils/retry";
 import { rateLimitMiddleware } from "@/lib/middleware/rate-limit";
-import { BigNumber } from "@/lib/utils/big-number";
 
 interface Reserve {
   underlyingAsset: string;
@@ -69,66 +61,8 @@ export async function GET(
   }
 
   try {
-    // Fetch reserves with retry
-    const aaveKitReserves = await withRetry(() => queryReserves(marketKey), {
-      onRetry: (attempt, error) => {
-        console.warn(`Retry ${attempt} for market ${marketKey}:`, error.message);
-      },
-    });
-
-    // Transform to Reserve entities
-    const reserves: Reserve[] = aaveKitReserves.map((r) => {
-      const normalizedAddress = normalizeAddress(r.underlyingAsset);
-      const priceUSD = priceToUSD(r.price.priceInEth, r.symbol, normalizedAddress);
-      const decimals = r.decimals;
-
-      const suppliedTokens = new BigNumber(r.totalATokenSupply);
-      const borrowedTokens = new BigNumber(r.totalCurrentVariableDebt);
-      const availableLiquidity = new BigNumber(r.availableLiquidity);
-
-      const totalSuppliedUSD = calculateTotalSuppliedUSD(
-        r.totalATokenSupply,
-        decimals,
-        priceUSD
-      );
-      const totalBorrowedUSD = calculateTotalBorrowedUSD(
-        r.totalCurrentVariableDebt,
-        decimals,
-        priceUSD
-      );
-
-      // Calculate utilization
-      const utilizationRate =
-        borrowedTokens.plus(availableLiquidity).eq(0)
-          ? 0
-          : borrowedTokens.div(borrowedTokens.plus(availableLiquidity)).toNumber();
-
-      // AaveKit returns APY as decimal (e.g., 0.05 = 5%)
-      // PercentValue.value is normalized (1.0 = 100%), so use directly
-      const supplyAPR = new BigNumber(r.currentLiquidityRate).toNumber();
-      const borrowAPR = r.currentVariableBorrowRate !== "0"
-        ? new BigNumber(r.currentVariableBorrowRate).toNumber()
-        : 0;
-
-      return {
-        underlyingAsset: normalizedAddress,
-        symbol: r.symbol,
-        name: r.name,
-        decimals,
-        imageUrl: r.imageUrl,
-        currentState: {
-          suppliedTokens: suppliedTokens.toString(),
-          borrowedTokens: borrowedTokens.toString(),
-          availableLiquidity: availableLiquidity.toString(),
-          supplyAPR,
-          borrowAPR,
-          utilizationRate,
-          oraclePrice: priceUSD,
-          totalSuppliedUSD,
-          totalBorrowedUSD,
-        },
-      };
-    });
+    // All markets now use DB for current data (collected from AaveKit API via daily cron)
+    const reserves = await getMarketReservesFromDB(marketKey);
 
     // Calculate market totals
     const totals = calculateMarketTotals(reserves);

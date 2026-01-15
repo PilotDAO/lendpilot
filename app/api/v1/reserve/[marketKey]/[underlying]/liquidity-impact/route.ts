@@ -7,7 +7,7 @@ import {
   calculateLiquidityImpact,
   type ReserveParameters,
 } from "@/lib/calculations/liquidity-impact";
-import { queryReserve } from "@/lib/api/aavekit";
+import { getReserveFromDB } from "@/lib/api/db-market-data";
 import { BigNumber } from "@/lib/utils/big-number";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -82,32 +82,36 @@ export async function GET(
     const reserve = await reserveResponse.json();
     const currentState = reserve.currentState;
 
-    // Fetch reserve parameters from AaveKit API
-    const aaveKitReserve = await queryReserve(marketKey, normalizedAddress);
-    if (!aaveKitReserve) {
-      throw new Error("Reserve not found in AaveKit");
+    // Get reserve parameters from DB (now stored in rawData)
+    // All markets now use DB for current data (collected from AaveKit API via daily cron)
+    let reserveWithParams: any = null;
+    try {
+      reserveWithParams = await getReserveFromDB(marketKey, normalizedAddress);
+    } catch (dbError) {
+      console.warn(`Failed to fetch reserve from DB for ${marketKey}/${normalizedAddress}:`, dbError);
+      // Continue with defaults if DB lookup fails
     }
 
-    // Get reserve parameters from API (with fallback to defaults)
+    // Get reserve parameters from DB (with fallback to defaults)
     // Note: PercentValue.value is in decimal format (0.1 = 10%), so we use it directly
-    const optimalUsageRate = aaveKitReserve.optimalUsageRate
-      ? new BigNumber(aaveKitReserve.optimalUsageRate).toNumber()
+    const optimalUsageRate = reserveWithParams?.optimalUsageRate
+      ? new BigNumber(reserveWithParams.optimalUsageRate).toNumber()
       : 0.8; // Default 80%
     
-    const baseRate = aaveKitReserve.baseVariableBorrowRate
-      ? new BigNumber(aaveKitReserve.baseVariableBorrowRate).toNumber()
+    const baseRate = reserveWithParams?.baseVariableBorrowRate
+      ? new BigNumber(reserveWithParams.baseVariableBorrowRate).toNumber()
       : 0.0; // Default 0%
     
-    const slope1 = aaveKitReserve.variableRateSlope1
-      ? new BigNumber(aaveKitReserve.variableRateSlope1).toNumber()
+    const slope1 = reserveWithParams?.variableRateSlope1
+      ? new BigNumber(reserveWithParams.variableRateSlope1).toNumber()
       : 0.04; // Default 4%
     
-    const slope2 = aaveKitReserve.variableRateSlope2
-      ? new BigNumber(aaveKitReserve.variableRateSlope2).toNumber()
+    const slope2 = reserveWithParams?.variableRateSlope2
+      ? new BigNumber(reserveWithParams.variableRateSlope2).toNumber()
       : 0.75; // Default 75%
     
-    const reserveFactor = aaveKitReserve.reserveFactor
-      ? new BigNumber(aaveKitReserve.reserveFactor).toNumber()
+    const reserveFactor = reserveWithParams?.reserveFactor
+      ? new BigNumber(reserveWithParams.reserveFactor).toNumber()
       : 0.1; // Default 10%
 
     // Debug logging (only in development)
@@ -118,11 +122,12 @@ export async function GET(
         slope1,
         slope2,
         reserveFactor,
-        hasOptimalUsageRate: !!aaveKitReserve.optimalUsageRate,
-        hasBaseRate: !!aaveKitReserve.baseVariableBorrowRate,
-        hasSlope1: !!aaveKitReserve.variableRateSlope1,
-        hasSlope2: !!aaveKitReserve.variableRateSlope2,
-        hasReserveFactor: !!aaveKitReserve.reserveFactor,
+        hasOptimalUsageRate: !!reserveWithParams?.optimalUsageRate,
+        hasBaseRate: !!reserveWithParams?.baseVariableBorrowRate,
+        hasSlope1: !!reserveWithParams?.variableRateSlope1,
+        hasSlope2: !!reserveWithParams?.variableRateSlope2,
+        hasReserveFactor: !!reserveWithParams?.reserveFactor,
+        source: reserveWithParams ? 'DB' : 'defaults',
       });
     }
 
@@ -175,13 +180,14 @@ export async function GET(
             slope2,
             reserveFactor,
           },
-          hasParametersFromAPI: {
-            optimalUsageRate: !!aaveKitReserve.optimalUsageRate,
-            baseRate: !!aaveKitReserve.baseVariableBorrowRate,
-            slope1: !!aaveKitReserve.variableRateSlope1,
-            slope2: !!aaveKitReserve.variableRateSlope2,
-            reserveFactor: !!aaveKitReserve.reserveFactor,
+          hasParametersFromDB: {
+            optimalUsageRate: !!reserveWithParams?.optimalUsageRate,
+            baseRate: !!reserveWithParams?.baseVariableBorrowRate,
+            slope1: !!reserveWithParams?.variableRateSlope1,
+            slope2: !!reserveWithParams?.variableRateSlope2,
+            reserveFactor: !!reserveWithParams?.reserveFactor,
           },
+          source: reserveWithParams ? 'DB' : 'defaults',
         },
       } : {}),
     });

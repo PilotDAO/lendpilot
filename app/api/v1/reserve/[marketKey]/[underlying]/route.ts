@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryReserve } from "@/lib/api/aavekit";
+import { getReserveFromDB } from "@/lib/api/db-market-data";
 import { normalizeAddress, validateAddress } from "@/lib/utils/address";
 import { validateMarketKey, getMarket } from "@/lib/utils/market";
-import {
-  calculateTotalSuppliedUSD,
-  calculateTotalBorrowedUSD,
-  priceToUSD,
-} from "@/lib/calculations/totals";
 import { liveDataCache } from "@/lib/cache/cache-instances";
 import { createErrorResponse, ErrorCodes } from "@/lib/utils/errors";
-import { withRetry } from "@/lib/utils/retry";
 import { rateLimitMiddleware } from "@/lib/middleware/rate-limit";
-import { BigNumber } from "@/lib/utils/big-number";
 
 export async function GET(
   request: NextRequest,
@@ -58,80 +51,28 @@ export async function GET(
   }
 
   try {
-    // Fetch reserve with retry
-    const aaveKitReserve = await withRetry(
-      () => queryReserve(marketKey, normalizedAddress),
-      {
-        onRetry: (attempt, error) => {
-          console.warn(
-            `Retry ${attempt} for reserve ${marketKey}/${normalizedAddress}:`,
-            error.message
-          );
-        },
-      }
-    );
+    // All markets now use DB for current data (collected from AaveKit API via daily cron)
+    const reserve = await getReserveFromDB(marketKey, normalizedAddress);
 
-    if (!aaveKitReserve) {
+    if (!reserve) {
       return NextResponse.json(
         createErrorResponse(ErrorCodes.RESERVE_NOT_FOUND, "Reserve not found"),
         { status: 404 }
       );
     }
 
-    const priceUSD = priceToUSD(
-      aaveKitReserve.price.priceInEth,
-      aaveKitReserve.symbol,
-      normalizedAddress
-    );
-    const decimals = aaveKitReserve.decimals;
-
-    const suppliedTokens = new BigNumber(aaveKitReserve.totalATokenSupply);
-    const borrowedTokens = new BigNumber(aaveKitReserve.totalCurrentVariableDebt);
-    const availableLiquidity = new BigNumber(aaveKitReserve.availableLiquidity);
-
-    const totalSuppliedUSD = calculateTotalSuppliedUSD(
-      aaveKitReserve.totalATokenSupply,
-      decimals,
-      priceUSD
-    );
-    const totalBorrowedUSD = calculateTotalBorrowedUSD(
-      aaveKitReserve.totalCurrentVariableDebt,
-      decimals,
-      priceUSD
-    );
-
-    // Calculate utilization
-    const utilizationRate =
-      borrowedTokens.plus(availableLiquidity).eq(0)
-        ? 0
-        : borrowedTokens.div(borrowedTokens.plus(availableLiquidity)).toNumber();
-
-    // AaveKit returns APY as decimal (e.g., 0.05 = 5%)
-    // Convert to number directly (no Ray conversion needed)
-    const supplyAPR = new BigNumber(aaveKitReserve.currentLiquidityRate).toNumber();
-    const borrowAPR = aaveKitReserve.currentVariableBorrowRate !== "0"
-      ? new BigNumber(aaveKitReserve.currentVariableBorrowRate).toNumber()
-      : 0;
-
+    // Transform to response format (add missing fields if needed)
     const response = {
-      underlyingAsset: normalizedAddress,
-      symbol: aaveKitReserve.symbol,
-      name: aaveKitReserve.name,
-      decimals,
-      imageUrl: aaveKitReserve.imageUrl,
+      underlyingAsset: reserve.underlyingAsset,
+      symbol: reserve.symbol,
+      name: reserve.name,
+      decimals: reserve.decimals,
+      imageUrl: reserve.imageUrl,
       currentState: {
-        supplyAPR,
-        borrowAPR,
-        suppliedTokens: suppliedTokens.toString(),
-        borrowedTokens: borrowedTokens.toString(),
-        availableLiquidity: availableLiquidity.toString(),
-        totalSuppliedUSD,
-        totalBorrowedUSD,
-        utilizationRate,
-        oraclePrice: priceUSD,
-        liquidityIndex: aaveKitReserve.liquidityIndex,
-        variableBorrowIndex: aaveKitReserve.variableBorrowIndex,
-        lastUpdateTimestamp: aaveKitReserve.lastUpdateTimestamp,
+        ...reserve.currentState,
+        liquidityIndex: reserve.currentState.liquidityIndex || "0",
+        variableBorrowIndex: reserve.currentState.variableBorrowIndex || "0",
+        lastUpdateTimestamp: reserve.currentState.lastUpdateTimestamp || 0,
       },
     };
 

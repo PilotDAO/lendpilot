@@ -4,7 +4,6 @@ import { normalizeAddress, validateAddress } from "@/lib/utils/address";
 import { validateMarketKey } from "@/lib/utils/market";
 import { createErrorResponse, ErrorCodes } from "@/lib/utils/errors";
 import { rateLimitMiddleware } from "@/lib/middleware/rate-limit";
-import { getDataSourceForMarket } from "@/lib/utils/data-source";
 import { calculate30DayAPRSeries, calculate30DayAPRStats } from "@/lib/calculations/apr";
 
 type Item = { marketKey: string; underlying: string };
@@ -62,7 +61,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate + normalize
-  const normalized: Array<{ marketKey: string; underlying: string; dataSource: "subgraph" | "aavekit" }> = [];
+  // Historical data (AssetSnapshot) can be from 'subgraph' or 'aavekit' source
+  const normalized: Array<{ marketKey: string; underlying: string }> = [];
   for (const it of items) {
     if (!it?.marketKey || !it?.underlying) continue;
     if (!validateMarketKey(it.marketKey)) continue;
@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
     normalized.push({
       marketKey: it.marketKey,
       underlying: normalizeAddress(it.underlying),
-      dataSource: getDataSourceForMarket(it.marketKey),
     });
   }
 
@@ -82,11 +81,12 @@ export async function POST(request: NextRequest) {
   cutoffDate.setDate(cutoffDate.getDate() - 45);
   cutoffDate.setUTCHours(0, 0, 0, 0);
 
-  // Group queries by marketKey+dataSource for fewer roundtrips
-  const groups = new Map<string, { marketKey: string; dataSource: "subgraph" | "aavekit"; underlyings: Set<string> }>();
+  // Group queries by marketKey for fewer roundtrips
+  // Historical data can be from 'subgraph' or 'aavekit' source
+  const groups = new Map<string, { marketKey: string; underlyings: Set<string> }>();
   for (const it of normalized) {
-    const key = `${it.marketKey}:${it.dataSource}`;
-    const g = groups.get(key) || { marketKey: it.marketKey, dataSource: it.dataSource, underlyings: new Set<string>() };
+    const key = it.marketKey;
+    const g = groups.get(key) || { marketKey: it.marketKey, underlyings: new Set<string>() };
     g.underlyings.add(it.underlying);
     groups.set(key, g);
   }
@@ -97,10 +97,11 @@ export async function POST(request: NextRequest) {
 
   for (const g of groups.values()) {
     const underlyings = Array.from(g.underlyings);
+    // Historical data can be from 'subgraph' or 'aavekit' source
     const rows = await prisma.assetSnapshot.findMany({
       where: {
         marketKey: g.marketKey,
-        dataSource: g.dataSource,
+        dataSource: { in: ['subgraph', 'aavekit'] }, // Check both sources
         underlyingAsset: { in: underlyings },
         date: { gte: cutoffDate },
       },

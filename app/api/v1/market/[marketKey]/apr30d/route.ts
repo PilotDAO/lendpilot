@@ -4,7 +4,6 @@ import { validateMarketKey } from "@/lib/utils/market";
 import { normalizeAddress } from "@/lib/utils/address";
 import { createErrorResponse, ErrorCodes } from "@/lib/utils/errors";
 import { rateLimitMiddleware } from "@/lib/middleware/rate-limit";
-import { getDataSourceForMarket } from "@/lib/utils/data-source";
 import { calculate30DayAPRSeries, calculate30DayAPRStats } from "@/lib/calculations/apr";
 
 type Apr30dSeriesPoint = { date: string; borrowAPR: number };
@@ -34,18 +33,18 @@ export async function GET(
     );
   }
 
-  const dataSource = getDataSourceForMarket(marketKey);
-
+  // Historical data (AssetSnapshot) can be from 'subgraph' or 'aavekit' source
   // Read last ~45 days to have enough points for the 30d series + interpolation
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - 45);
   cutoffDate.setUTCHours(0, 0, 0, 0);
 
   try {
+    // Historical data can be from 'subgraph' or 'aavekit' source
     const rows = await prisma.assetSnapshot.findMany({
       where: {
         marketKey,
-        dataSource,
+        dataSource: { in: ['subgraph', 'aavekit'] }, // Check both sources
         date: { gte: cutoffDate },
       },
       orderBy: [{ underlyingAsset: "asc" }, { date: "asc" }],

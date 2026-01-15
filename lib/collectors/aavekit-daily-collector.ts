@@ -1,6 +1,7 @@
-import { queryReserves } from '@/lib/api/aavekit';
+import { queryReserves, queryReserve } from '@/lib/api/aavekit';
 import { loadMarkets } from '@/lib/utils/market';
 import { prisma } from '@/lib/db/prisma';
+import { normalizeAddress } from '@/lib/utils/address';
 
 /**
  * Collector for daily AaveKit API snapshots
@@ -8,22 +9,21 @@ import { prisma } from '@/lib/db/prisma';
  */
 export class AaveKitDailyCollector {
   /**
-   * Collects daily snapshots for all markets (except Ethereum V3)
+   * Collects daily snapshots for all markets
+   * All markets now collect current data from AaveKit API and store in DB
    */
   async collectDailySnapshots(): Promise<void> {
     const markets = loadMarkets();
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     
-    // Exclude Ethereum V3 (uses Subgraph)
-    const marketsToCollect = markets.filter(m => m.marketKey !== 'ethereum-v3');
-    
-    console.log(`🔄 Collecting daily snapshots for ${marketsToCollect.length} markets...`);
+    // Collect for ALL markets (including ethereum-v3)
+    console.log(`🔄 Collecting daily snapshots for ${markets.length} markets...`);
     
     let collected = 0;
     let failed = 0;
     
-    for (const market of marketsToCollect) {
+    for (const market of markets) {
       try {
         console.log(`  📊 Collecting ${market.marketKey}...`);
         
@@ -36,7 +36,39 @@ export class AaveKitDailyCollector {
           continue;
         }
         
-        // Save raw data
+        // Enrich reserves with parameters (optimalUsageRate, baseVariableBorrowRate, etc.)
+        // Fetch parameters for each reserve in parallel (with rate limiting)
+        console.log(`  🔄 Fetching reserve parameters for ${reserves.length} reserves...`);
+        const enrichedReserves = await Promise.all(
+          reserves.map(async (reserve, index) => {
+            try {
+              // Small delay to avoid rate limiting (every 5 requests)
+              if (index > 0 && index % 5 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+              
+              const reserveWithParams = await queryReserve(market.marketKey, reserve.underlyingAsset);
+              if (reserveWithParams) {
+                // Merge parameters into reserve
+                return {
+                  ...reserve,
+                  optimalUsageRate: reserveWithParams.optimalUsageRate,
+                  baseVariableBorrowRate: reserveWithParams.baseVariableBorrowRate,
+                  variableRateSlope1: reserveWithParams.variableRateSlope1,
+                  variableRateSlope2: reserveWithParams.variableRateSlope2,
+                  reserveFactor: reserveWithParams.reserveFactor,
+                };
+              }
+              return reserve;
+            } catch (error) {
+              console.warn(`  ⚠️  Failed to fetch parameters for ${reserve.symbol} (${normalizeAddress(reserve.underlyingAsset)}):`, error instanceof Error ? error.message : String(error));
+              // Return reserve without parameters if fetch fails
+              return reserve;
+            }
+          })
+        );
+        
+        // Save raw data with enriched reserves
         await prisma.aaveKitRawSnapshot.upsert({
           where: {
             marketKey_date_dataSource: {
@@ -46,21 +78,21 @@ export class AaveKitDailyCollector {
             },
           },
           update: {
-            rawData: reserves as any,
+            rawData: enrichedReserves as any,
             timestamp: BigInt(Math.floor(Date.now() / 1000)),
             updatedAt: new Date(),
           },
           create: {
             marketKey: market.marketKey,
             date: today,
-            rawData: reserves as any,
+            rawData: enrichedReserves as any,
             timestamp: BigInt(Math.floor(Date.now() / 1000)),
             dataSource: 'aavekit',
           },
         });
         
         collected++;
-        console.log(`  ✅ Collected ${market.marketKey} (${reserves.length} reserves)`);
+        console.log(`  ✅ Collected ${market.marketKey} (${enrichedReserves.length} reserves with parameters)`);
       } catch (error) {
         console.error(`  ❌ Failed to collect ${market.marketKey}:`, error);
         failed++;
@@ -77,12 +109,7 @@ export class AaveKitDailyCollector {
     const targetDate = date || new Date();
     targetDate.setUTCHours(0, 0, 0, 0);
     
-    // Skip Ethereum V3
-    if (marketKey === 'ethereum-v3') {
-      console.log(`⚠️  Skipping ${marketKey} (uses Subgraph)`);
-      return;
-    }
-    
+    // All markets are collected now (no exclusions)
     try {
       console.log(`📊 Collecting snapshot for ${marketKey} on ${targetDate.toISOString().split('T')[0]}...`);
       
@@ -91,6 +118,37 @@ export class AaveKitDailyCollector {
       if (!reserves || reserves.length === 0) {
         throw new Error(`No reserves found for ${marketKey}`);
       }
+      
+      // Enrich reserves with parameters (optimalUsageRate, baseVariableBorrowRate, etc.)
+      console.log(`  🔄 Fetching reserve parameters for ${reserves.length} reserves...`);
+      const enrichedReserves = await Promise.all(
+        reserves.map(async (reserve, index) => {
+          try {
+            // Small delay to avoid rate limiting (every 5 requests)
+            if (index > 0 && index % 5 === 0) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            const reserveWithParams = await queryReserve(marketKey, reserve.underlyingAsset);
+            if (reserveWithParams) {
+              // Merge parameters into reserve
+              return {
+                ...reserve,
+                optimalUsageRate: reserveWithParams.optimalUsageRate,
+                baseVariableBorrowRate: reserveWithParams.baseVariableBorrowRate,
+                variableRateSlope1: reserveWithParams.variableRateSlope1,
+                variableRateSlope2: reserveWithParams.variableRateSlope2,
+                reserveFactor: reserveWithParams.reserveFactor,
+              };
+            }
+            return reserve;
+          } catch (error) {
+            console.warn(`  ⚠️  Failed to fetch parameters for ${reserve.symbol} (${normalizeAddress(reserve.underlyingAsset)}):`, error instanceof Error ? error.message : String(error));
+            // Return reserve without parameters if fetch fails
+            return reserve;
+          }
+        })
+      );
       
       await prisma.aaveKitRawSnapshot.upsert({
         where: {
@@ -101,20 +159,20 @@ export class AaveKitDailyCollector {
           },
         },
         update: {
-          rawData: reserves as any,
+          rawData: enrichedReserves as any,
           timestamp: BigInt(Math.floor(Date.now() / 1000)),
           updatedAt: new Date(),
         },
         create: {
           marketKey,
           date: targetDate,
-          rawData: reserves as any,
+          rawData: enrichedReserves as any,
           timestamp: BigInt(Math.floor(Date.now() / 1000)),
           dataSource: 'aavekit',
         },
       });
       
-      console.log(`✅ Collected ${marketKey} (${reserves.length} reserves)`);
+      console.log(`✅ Collected ${marketKey} (${enrichedReserves.length} reserves with parameters)`);
     } catch (error) {
       console.error(`❌ Failed to collect ${marketKey}:`, error);
       throw error;
@@ -214,14 +272,14 @@ export class AaveKitDailyCollector {
    */
   async collectAllMissingData(days: number = 365): Promise<{ collected: number; skipped: number }> {
     const markets = loadMarkets();
-    const marketsToCollect = markets.filter(m => m.marketKey !== 'ethereum-v3');
+    // Collect for ALL markets (no exclusions)
     
-    console.log(`🔄 Collecting missing historical data for ${marketsToCollect.length} markets (last ${days} days)...\n`);
+    console.log(`🔄 Collecting missing current data for ${markets.length} markets (last ${days} days)...\n`);
     
     let totalCollected = 0;
     let totalSkipped = 0;
     
-    for (const market of marketsToCollect) {
+    for (const market of markets) {
       try {
         const result = await this.collectMissingData(market.marketKey, days);
         totalCollected += result.collected;

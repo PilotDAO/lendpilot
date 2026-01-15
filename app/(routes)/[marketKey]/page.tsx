@@ -3,20 +3,12 @@ import { validateMarketKey, getMarket } from "@/lib/utils/market";
 import { CompoundMetricsBlock } from "@/app/components/market/CompoundMetricsBlock";
 import { ReservesTable } from "@/app/components/tables/ReservesTable";
 import { MarketName } from "@/app/components/MarketName";
-import { queryReserves } from "@/lib/api/aavekit";
-import { normalizeAddress } from "@/lib/utils/address";
-import {
-  calculateTotalSuppliedUSD,
-  calculateTotalBorrowedUSD,
-  calculateMarketTotals,
-  priceToUSD,
-} from "@/lib/calculations/totals";
+import { getMarketReservesFromDB } from "@/lib/api/db-market-data";
+import { calculateMarketTotals } from "@/lib/calculations/totals";
 import { liveDataCache } from "@/lib/cache/cache-instances";
-import { withRetry } from "@/lib/utils/retry";
-import { BigNumber } from "@/lib/utils/big-number";
 import { prisma } from "@/lib/db/prisma";
 import { calculateMarketTrends } from "@/lib/calculations/trends";
-import { getDataSourceForMarket } from "@/lib/utils/data-source";
+import { usesSubgraphForHistory } from "@/lib/utils/data-source";
 
 interface MarketPageProps {
   params: Promise<{ marketKey: string }>;
@@ -50,66 +42,8 @@ async function getMarketData(marketKey: string) {
   }
 
   try {
-    // Fetch reserves with retry
-    const aaveKitReserves = await withRetry(() => queryReserves(marketKey), {
-      onRetry: (attempt, error) => {
-        console.warn(`Retry ${attempt} for market ${marketKey}:`, error.message);
-      },
-    });
-
-    // Transform to Reserve entities
-    const reserves: Reserve[] = aaveKitReserves.map((r) => {
-      const normalizedAddress = normalizeAddress(r.underlyingAsset);
-      const priceUSD = priceToUSD(r.price.priceInEth, r.symbol, normalizedAddress);
-      const decimals = r.decimals;
-
-      const suppliedTokens = new BigNumber(r.totalATokenSupply);
-      const borrowedTokens = new BigNumber(r.totalCurrentVariableDebt);
-      const availableLiquidity = new BigNumber(r.availableLiquidity);
-
-      const totalSuppliedUSD = calculateTotalSuppliedUSD(
-        r.totalATokenSupply,
-        decimals,
-        priceUSD
-      );
-      const totalBorrowedUSD = calculateTotalBorrowedUSD(
-        r.totalCurrentVariableDebt,
-        decimals,
-        priceUSD
-      );
-
-      // Calculate utilization
-      const utilizationRate =
-        borrowedTokens.plus(availableLiquidity).eq(0)
-          ? 0
-          : borrowedTokens.div(borrowedTokens.plus(availableLiquidity)).toNumber();
-
-      // AaveKit returns APY as decimal (e.g., 0.05 = 5%)
-      // PercentValue.value is normalized (1.0 = 100%), so use directly
-      const supplyAPR = new BigNumber(r.currentLiquidityRate).toNumber();
-      const borrowAPR = r.currentVariableBorrowRate !== "0"
-        ? new BigNumber(r.currentVariableBorrowRate).toNumber()
-        : 0;
-
-      return {
-        underlyingAsset: normalizedAddress,
-        symbol: r.symbol,
-        name: r.name,
-        decimals,
-        imageUrl: r.imageUrl,
-        currentState: {
-          suppliedTokens: suppliedTokens.toString(),
-          borrowedTokens: borrowedTokens.toString(),
-          availableLiquidity: availableLiquidity.toString(),
-          supplyAPR,
-          borrowAPR,
-          utilizationRate,
-          oraclePrice: priceUSD,
-          totalSuppliedUSD,
-          totalBorrowedUSD,
-        },
-      };
-    });
+    // All markets now use DB for current data (collected from AaveKit API via daily cron)
+    const reserves = await getMarketReservesFromDB(marketKey);
 
     // Calculate market totals
     const totals = calculateMarketTotals(reserves);
@@ -143,8 +77,8 @@ async function getTimeseriesData(
   window: "7d" | "30d" | "3m" | "6m" | "1y" = "30d"
 ): Promise<TimeseriesData[]> {
   try {
-    const dataSource = getDataSourceForMarket(marketKey);
-    
+    // Historical data can come from 'subgraph' or 'aavekit' in DB
+    // Check both sources for historical data
     // Calculate cutoff date for the window (only last N days)
     const expectedDays = window === "7d" ? 7 : window === "30d" ? 30 : window === "3m" ? 90 : window === "6m" ? 180 : 365;
     const cutoffDate = new Date();
@@ -153,11 +87,12 @@ async function getTimeseriesData(
 
     // Try to fetch from database first (fast path)
     // Filter by date to only return data for the requested window period
+    // Historical data can be from 'subgraph' or 'aavekit' source
     const dbData = await prisma.marketTimeseries.findMany({
       where: {
         marketKey,
         window,
-        dataSource,
+        dataSource: { in: ['subgraph', 'aavekit'] }, // Check both sources
         date: {
           gte: cutoffDate, // Only data from the last N days
         },
@@ -196,11 +131,11 @@ async function getTimeseriesData(
       }));
     }
 
-    // Fallback logic based on data source (dataSource already defined above)
-    if (dataSource === 'subgraph') {
-      // For Ethereum V3: fallback to Subgraph (slow path)
-      console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
-      
+    // Fallback: All markets can use Subgraph for historical data if not in DB
+    // Historical data comes from Subgraph (as per original spec)
+    console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
+    
+    try {
       const trendsData = await calculateMarketTrends(marketKey, window);
       
       if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
@@ -213,10 +148,8 @@ async function getTimeseriesData(
         totalBorrowedUSD: trend.totalBorrowedUSD,
         availableLiquidityUSD: trend.availableLiquidityUSD,
       }));
-    } else {
-      // For other markets: data should be collected via AaveKit cron
-      // Return empty array - data will be available after first sync
-      console.warn(`⚠️  No DB data for ${marketKey} (${window}). Data will be available after AaveKit sync runs.`);
+    } catch (error) {
+      console.error(`Failed to fetch historical data from Subgraph for ${marketKey}:`, error);
       return [];
     }
   } catch (error) {
@@ -244,16 +177,66 @@ export default async function MarketPage({ params }: MarketPageProps) {
     getMarketData(marketKey),
     getTimeseriesData(marketKey, "7d"),
     // Получаем тренды для изменений (может быть null при ошибке)
-    // Only calculate trends for Subgraph markets (Ethereum V3)
-    getDataSourceForMarket(marketKey) === 'subgraph'
-      ? calculateMarketTrends(marketKey, "7d").catch(() => null)
-      : Promise.resolve(null),
+    // Calculate trends for all markets (historical data from Subgraph)
+    // All markets can use Subgraph for historical data
+    calculateMarketTrends(marketKey, "7d").catch(() => null),
   ]);
 
   // Handle errors gracefully
   if (marketData.status === "rejected" || !marketData.value) {
-    console.error("Failed to fetch market data:", marketData.status === "rejected" ? marketData.reason : "No data");
-    notFound();
+    const errorMessage = marketData.status === "rejected" 
+      ? marketData.reason?.message || String(marketData.reason)
+      : "No data";
+    console.error("Failed to fetch market data:", errorMessage);
+    
+    // Check if it's a "no data in DB" error for ethereum-v3
+    const isEthereumV3NoData = marketKey === 'ethereum-v3' && 
+      errorMessage.includes('No data found in database');
+    
+    // Instead of showing 404, show the page with an error message
+    // This allows users to see the page structure even if data fetch fails
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+            {isEthereumV3NoData ? "Data Collection in Progress" : "Error Loading Market Data"}
+          </h2>
+          {isEthereumV3NoData ? (
+            <>
+              <p className="text-yellow-600 dark:text-yellow-300 mb-4">
+                Data for this market is being collected. This may take a few minutes.
+              </p>
+              <p className="text-sm text-yellow-500 dark:text-yellow-400">
+                The daily cron job will collect data from AaveKit API and store it in the database. 
+                Please check back in a few minutes.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-yellow-600 dark:text-yellow-300 mb-4">
+                Unable to fetch market data. This may be due to:
+              </p>
+              <ul className="list-disc list-inside text-yellow-600 dark:text-yellow-300 space-y-1 mb-4">
+                <li>Data not yet collected (cron job may not have run yet)</li>
+                <li>API service temporarily unavailable</li>
+                <li>Network connectivity issues</li>
+              </ul>
+              <p className="text-sm text-yellow-500 dark:text-yellow-400">
+                Please try refreshing the page in a few moments.
+              </p>
+            </>
+          )}
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+            {market.displayName}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Market data will appear here once the API connection is restored.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const resolvedMarketData = marketData.value;

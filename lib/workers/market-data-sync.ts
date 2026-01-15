@@ -114,63 +114,8 @@ export async function syncMarketTimeseries(
       console.log('');
     }
 
-    // 3. Check if Subgraph data is reliable for this market
-    // For many markets, Subgraph data is incorrect, incomplete, or unavailable
-    // We'll validate by comparing current data from Subgraph with AaveKit
-    // Based on validation report: 0 reliable markets out of 20 tested
-    const UNRELIABLE_MARKETS = [
-      'ethereum-v3',           // -45.5% supply diff, price mismatches
-      'ethereum-ether-fi-v3',  // -100% (no data)
-      'ethereum-lido-v3',      // -81.4% supply diff
-      'optimism-v3',           // +728.9% supply diff, missing 6 reserves
-      'sonic-v3',              // +180.8% supply diff
-      'base-v3',               // -71.3% supply diff, missing 7 reserves
-      'arbitrum-v3',           // -97.8% supply diff, missing 12 reserves
-      'avalanche-v3',          // -57.8% supply diff, missing 6 reserves
-      'ink-v3',                // -100% (no reserves in Subgraph)
-      'linea-v3',              // +482.7% supply diff, price mismatches
-      'scroll-v3',             // -7.1% supply but +140.1% borrow diff
-    ]; // Markets where Subgraph data is known to be incorrect or incomplete
-    
-    if (UNRELIABLE_MARKETS.includes(marketKey)) {
-      console.warn(`⚠️  Market ${marketKey} is known to have unreliable Subgraph data.`);
-      console.warn(`   Skipping historical data collection from Subgraph.`);
-      console.warn(`   Only current data from AaveKit will be used.`);
-      
-      // Save only current data point from AaveKit (stored once, filtered by date on API)
-      if (currentData) {
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
-        
-        await prisma.marketTimeseries.upsert({
-          where: {
-            marketKey_date_window: {
-              marketKey,
-              date: today,
-              window: '1y', // Use "1y" as default - window is just for compatibility, filtering is by date
-            },
-          },
-            update: {
-              totalSuppliedUSD: currentData.totalSuppliedUSD,
-              totalBorrowedUSD: currentData.totalBorrowedUSD,
-              availableLiquidityUSD: currentData.calculatedAvailable,
-              dataSource: 'aavekit',
-              updatedAt: new Date(),
-            },
-            create: {
-              marketKey,
-              window: '1y', // Use "1y" as default - window is just for compatibility, filtering is by date
-              date: today,
-              totalSuppliedUSD: currentData.totalSuppliedUSD,
-              totalBorrowedUSD: currentData.totalBorrowedUSD,
-              availableLiquidityUSD: currentData.calculatedAvailable,
-              dataSource: 'aavekit',
-            },
-          });
-        console.log(`✅ Saved current data point (stored once, filtered by date on API)`);
-      }
-      return;
-    }
+    // 3. All markets now use Subgraph for historical data (as per original spec)
+    // Current data is collected from AaveKit API and stored in DB via daily cron
 
     // 4. Collect 1y data once (365 requests to Subgraph, one per day)
     // Note: Subgraph requires separate queries for each block/day
@@ -200,7 +145,7 @@ export async function syncMarketTimeseries(
         console.warn(`   Supply difference: ${(supplyDiff * 100).toFixed(2)}%`);
         console.warn(`   Borrow difference: ${(borrowDiff * 100).toFixed(2)}%`);
         console.warn(`   Subgraph data may be incorrect for ${marketKey}.`);
-        console.warn(`   Consider adding ${marketKey} to UNRELIABLE_MARKETS list.`);
+        console.warn(`   Subgraph data may be incorrect for ${marketKey}.`);
       }
     }
 

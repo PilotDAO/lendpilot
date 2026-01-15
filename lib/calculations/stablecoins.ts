@@ -1,6 +1,6 @@
 import { loadStablecoins } from "@/lib/data/stablecoins";
 import { loadMarkets } from "@/lib/utils/market";
-import { queryReserves } from "@/lib/api/aavekit";
+import { getMarketReservesFromDB } from "@/lib/api/db-market-data";
 import { normalizeAddress } from "@/lib/utils/address";
 import {
   calculateTotalSuppliedUSD,
@@ -8,7 +8,6 @@ import {
   priceToUSD,
 } from "@/lib/calculations/totals";
 import { BigNumber } from "@/lib/utils/big-number";
-import { withRetry } from "@/lib/utils/retry";
 
 export interface StablecoinData {
   symbol: string;
@@ -91,18 +90,9 @@ export async function aggregateStablecoinsData(): Promise<
       }
 
       try {
-        // Fetch reserves for this market
-        const reserves = await withRetry(
-          () => queryReserves(marketKey),
-          {
-            onRetry: (attempt, error) => {
-              console.warn(
-                `Retry ${attempt} for stablecoin ${stablecoin.symbol} in market ${marketKey}:`,
-                error.message
-              );
-            },
-          }
-        );
+        // Fetch reserves from database (collected from AaveKit API via daily cron)
+        // This avoids Cloudflare blocking and uses cached data
+        const reserves = await getMarketReservesFromDB(marketKey);
 
         // Find the stablecoin reserve
         const reserve = reserves.find(
@@ -116,43 +106,24 @@ export async function aggregateStablecoinsData(): Promise<
           continue;
         }
 
-        // Transform reserve data
-        const priceUSD = priceToUSD(
-          reserve.price.priceInEth,
-          reserve.symbol,
-          normalizedAddress
-        );
+        // Use data from currentState (already calculated in DB)
+        const currentState = reserve.currentState;
         const decimals = reserve.decimals;
+        const priceUSD = currentState.oraclePrice;
 
-        const suppliedTokens = new BigNumber(reserve.totalATokenSupply);
-        const borrowedTokens = new BigNumber(reserve.totalCurrentVariableDebt);
-        const availableLiquidity = new BigNumber(reserve.availableLiquidity);
+        const suppliedTokens = new BigNumber(currentState.suppliedTokens);
+        const borrowedTokens = new BigNumber(currentState.borrowedTokens);
+        const availableLiquidity = new BigNumber(currentState.availableLiquidity);
 
-        const totalSuppliedUSD = calculateTotalSuppliedUSD(
-          reserve.totalATokenSupply,
-          decimals,
-          priceUSD
-        );
-        const totalBorrowedUSD = calculateTotalBorrowedUSD(
-          reserve.totalCurrentVariableDebt,
-          decimals,
-          priceUSD
-        );
+        const totalSuppliedUSD = currentState.totalSuppliedUSD;
+        const totalBorrowedUSD = currentState.totalBorrowedUSD;
 
-        // Calculate utilization
-        const utilizationRate =
-          borrowedTokens.plus(availableLiquidity).eq(0)
-            ? 0
-            : borrowedTokens
-                .div(borrowedTokens.plus(availableLiquidity))
-                .toNumber();
+        // Use utilization rate from currentState
+        const utilizationRate = currentState.utilizationRate;
 
-        // AaveKit returns APY as decimal (e.g., 0.05 = 5%)
-        // PercentValue.value is normalized (1.0 = 100%), so use directly
-        const supplyAPR = new BigNumber(reserve.currentLiquidityRate).toNumber();
-        const borrowAPR = reserve.currentVariableBorrowRate !== "0"
-          ? new BigNumber(reserve.currentVariableBorrowRate).toNumber()
-          : 0;
+        // Use APR from currentState (already in decimal format)
+        const supplyAPR = currentState.supplyAPR;
+        const borrowAPR = currentState.borrowAPR;
 
         // Update aggregated data
         aggregated.markets.push({

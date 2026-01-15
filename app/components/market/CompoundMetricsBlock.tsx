@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MarketTotalsChart } from "@/app/components/charts/MarketTotalsChart";
+import dynamic from "next/dynamic";
 import { formatUSD } from "@/lib/utils/format";
 import { AssetChange } from "@/lib/calculations/trends";
+
+const MarketTotalsChart = dynamic(
+  () => import("@/app/components/charts/MarketTotalsChart").then((mod) => ({ default: mod.MarketTotalsChart })),
+  { ssr: false }
+);
 
 interface CompoundMetricsBlockProps {
   marketKey: string;

@@ -83,11 +83,16 @@ const columns: ColumnDef<StablecoinRow>[] = [
         >
           {item.imageUrl && (
             <Image
-              src={item.imageUrl}
+              src={`/api/v1/asset-icon/${item.marketKey}/${normalizedAddress}`}
               alt={item.symbol}
               width={24}
               height={24}
               className="rounded-full"
+              unoptimized
+              onError={(e) => {
+                // Hide image if it fails to load
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
             />
           )}
           <div>

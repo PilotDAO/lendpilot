@@ -13,14 +13,8 @@ import { AverageLendingRatesTable } from "@/app/components/asset/AverageLendingR
 import { DailySnapshotsTable } from "@/app/components/asset/DailySnapshotsTable";
 import { MonthlySnapshotsTable } from "@/app/components/asset/MonthlySnapshotsTable";
 import { LiquidityImpactTable } from "@/app/components/asset/LiquidityImpactTable";
-import { queryReserve } from "@/lib/api/aavekit";
-import {
-  calculateTotalSuppliedUSD,
-  calculateTotalBorrowedUSD,
-  priceToUSD,
-} from "@/lib/calculations/totals";
+import { getReserveFromDB } from "@/lib/api/db-market-data";
 import { liveDataCache } from "@/lib/cache/cache-instances";
-import { withRetry } from "@/lib/utils/retry";
 import { BigNumber } from "@/lib/utils/big-number";
 import { calculateAverageLendingRates } from "@/lib/calculations/apr";
 import { prisma } from "@/lib/db/prisma";
@@ -79,74 +73,30 @@ async function fetchReserveData(
   cacheKey: string
 ): Promise<ReserveData | null> {
   try {
-    const aaveKitReserve = await withRetry(() => queryReserve(marketKey, normalizedAddress), {
-      onRetry: (attempt, error) => {
-        console.warn(`Retry ${attempt} for reserve ${marketKey}/${normalizedAddress}:`, error.message);
-      },
-    });
+    // All markets now use DB for current data (collected from AaveKit API via daily cron)
+    const reserve = await getReserveFromDB(marketKey, normalizedAddress);
 
-    if (!aaveKitReserve) {
+    if (!reserve) {
       return null;
     }
 
-    const priceUSD = priceToUSD(
-      aaveKitReserve.price.priceInEth,
-      aaveKitReserve.symbol,
-      normalizedAddress
-    );
-    const decimals = aaveKitReserve.decimals;
-
-    const suppliedTokens = new BigNumber(aaveKitReserve.totalATokenSupply);
-    const borrowedTokens = new BigNumber(aaveKitReserve.totalCurrentVariableDebt);
-    const availableLiquidity = new BigNumber(aaveKitReserve.availableLiquidity);
-
-    const totalSuppliedUSD = calculateTotalSuppliedUSD(
-      aaveKitReserve.totalATokenSupply,
-      decimals,
-      priceUSD
-    );
-    const totalBorrowedUSD = calculateTotalBorrowedUSD(
-      aaveKitReserve.totalCurrentVariableDebt,
-      decimals,
-      priceUSD
-    );
-
-    const utilizationRate =
-      borrowedTokens.plus(availableLiquidity).eq(0)
-        ? 0
-        : borrowedTokens.div(borrowedTokens.plus(availableLiquidity)).toNumber();
-
-    // AaveKit returns APY as decimal (e.g., 0.05 = 5%)
-    // Convert to number directly (no Ray conversion needed)
-    const supplyAPR = new BigNumber(aaveKitReserve.currentLiquidityRate).toNumber();
-    const borrowAPR = aaveKitReserve.currentVariableBorrowRate !== "0"
-      ? new BigNumber(aaveKitReserve.currentVariableBorrowRate).toNumber()
-      : 0;
-
-    const reserve = {
-      underlyingAsset: normalizedAddress,
-      symbol: aaveKitReserve.symbol,
-      name: aaveKitReserve.name,
-      decimals,
-      imageUrl: aaveKitReserve.imageUrl,
+    // Transform to ReserveData format (add missing fields if needed)
+    const reserveData: ReserveData = {
+      underlyingAsset: reserve.underlyingAsset,
+      symbol: reserve.symbol,
+      name: reserve.name,
+      decimals: reserve.decimals,
+      imageUrl: reserve.imageUrl,
       currentState: {
-        supplyAPR,
-        borrowAPR,
-        suppliedTokens: suppliedTokens.toString(),
-        borrowedTokens: borrowedTokens.toString(),
-        availableLiquidity: availableLiquidity.toString(),
-        totalSuppliedUSD,
-        totalBorrowedUSD,
-        utilizationRate,
-        oraclePrice: priceUSD,
-        liquidityIndex: aaveKitReserve.liquidityIndex,
-        variableBorrowIndex: aaveKitReserve.variableBorrowIndex,
-        lastUpdateTimestamp: aaveKitReserve.lastUpdateTimestamp,
+        ...reserve.currentState,
+        liquidityIndex: reserve.currentState.liquidityIndex || "0",
+        variableBorrowIndex: reserve.currentState.variableBorrowIndex || "0",
+        lastUpdateTimestamp: reserve.currentState.lastUpdateTimestamp || 0,
       },
     };
 
-    liveDataCache.set(cacheKey, reserve);
-    return reserve;
+    liveDataCache.set(cacheKey, reserveData);
+    return reserveData;
   } catch (error) {
     console.error(`Error fetching reserve ${marketKey}/${normalizedAddress}:`, error);
     const stale = liveDataCache.get(cacheKey);
@@ -215,25 +165,31 @@ function loadScenariosForUnderlying(normalizedUnderlying: string): Array<{ actio
 
 async function getLiquidityImpactData(marketKey: string, underlying: string, reserveData: ReserveData) {
   try {
-    const aaveKitReserve = await queryReserve(marketKey, underlying);
-    if (!aaveKitReserve) {
-      return { results: [] as any[] };
+    // All markets now use DB for current data (collected from AaveKit API via daily cron)
+    let reserve: any;
+    try {
+      reserve = await getReserveFromDB(marketKey, underlying);
+    } catch (dbError) {
+      console.warn(`Failed to fetch reserve from DB for ${marketKey}/${underlying}:`, dbError);
+      // Continue with defaults if DB lookup fails
     }
 
-    const optimalUsageRate = aaveKitReserve.optimalUsageRate
-      ? new BigNumber(aaveKitReserve.optimalUsageRate).toNumber()
+    // Extract parameters from reserve (now available from DB)
+    // Use defaults if parameters are not available
+    const optimalUsageRate = reserve?.optimalUsageRate
+      ? new BigNumber(reserve.optimalUsageRate).toNumber()
       : 0.8;
-    const baseRate = aaveKitReserve.baseVariableBorrowRate
-      ? new BigNumber(aaveKitReserve.baseVariableBorrowRate).toNumber()
+    const baseRate = reserve?.baseVariableBorrowRate
+      ? new BigNumber(reserve.baseVariableBorrowRate).toNumber()
       : 0.0;
-    const slope1 = aaveKitReserve.variableRateSlope1
-      ? new BigNumber(aaveKitReserve.variableRateSlope1).toNumber()
+    const slope1 = reserve?.variableRateSlope1
+      ? new BigNumber(reserve.variableRateSlope1).toNumber()
       : 0.04;
-    const slope2 = aaveKitReserve.variableRateSlope2
-      ? new BigNumber(aaveKitReserve.variableRateSlope2).toNumber()
+    const slope2 = reserve?.variableRateSlope2
+      ? new BigNumber(reserve.variableRateSlope2).toNumber()
       : 0.75;
-    const reserveFactor = aaveKitReserve.reserveFactor
-      ? new BigNumber(aaveKitReserve.reserveFactor).toNumber()
+    const reserveFactor = reserve?.reserveFactor
+      ? new BigNumber(reserve.reserveFactor).toNumber()
       : 0.1;
 
     const params: ReserveParameters = {

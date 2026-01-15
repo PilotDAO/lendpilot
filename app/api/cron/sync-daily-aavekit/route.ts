@@ -10,10 +10,10 @@ import { syncAllAssetSnapshots } from "@/lib/workers/asset-snapshots-sync";
  * Background job endpoint for syncing daily AaveKit data to database.
  * 
  * This endpoint (combined with asset snapshots sync):
- * 1. Collects raw data from AaveKit API for all markets (except Ethereum V3)
+ * 1. Collects current data from AaveKit API for all markets (stored in DB)
  * 2. Processes raw data and creates MarketTimeseries entries
- * 3. Processes AaveKit snapshots into AssetSnapshots (for non-Ethereum markets)
- * 4. Syncs Ethereum V3 asset snapshots from Subgraph
+ * 3. Processes AaveKit snapshots into AssetSnapshots
+ * 4. Syncs asset snapshots from Subgraph (for historical data)
  * 
  * This endpoint should be called by:
  * - Vercel Cron (recommended for production)
@@ -42,28 +42,29 @@ export async function POST(request: NextRequest) {
     const marketProcessor = new AaveKitMarketProcessor();
     const assetProcessor = new AaveKitAssetProcessor();
     
-    // Step 1: Collect today's data
+    // Step 1: Collect today's data for all markets
     await collector.collectDailySnapshots();
     
-    // Step 2: Check for missing historical data (first 365 days)
-    // This ensures we have at least 1 year of data for charts
-    console.log('\n🔍 Checking for missing historical data (last 365 days)...');
-    const missingDataResult = await collector.collectAllMissingData(365);
+    // Step 2: Check for missing current data (last 7 days only - not historical)
+    // This fills gaps in current data collection, but we don't collect historical data via AaveKit
+    // Historical data comes from Subgraph (as per original spec)
+    console.log('\n🔍 Checking for missing current data (last 7 days)...');
+    const missingDataResult = await collector.collectAllMissingData(7);
     
     if (missingDataResult.collected > 0) {
-      console.log(`📊 Collected ${missingDataResult.collected} missing historical snapshots`);
+      console.log(`📊 Collected ${missingDataResult.collected} missing current data snapshots`);
     }
     
     // Step 3: Process market timeseries data
     console.log('\n🔄 Processing market timeseries data...');
     await marketProcessor.processAllPending();
     
-    // Step 4: Process AaveKit asset snapshots (for non-Ethereum markets)
+    // Step 4: Process AaveKit asset snapshots
     console.log('\n🔄 Processing AaveKit asset snapshots...');
     await assetProcessor.processAllPending();
     
-    // Step 5: Sync Ethereum V3 asset snapshots from Subgraph
-    console.log('\n🔄 Syncing Ethereum V3 asset snapshots from Subgraph...');
+    // Step 5: Sync asset snapshots from Subgraph (for historical data)
+    console.log('\n🔄 Syncing asset snapshots from Subgraph (historical data)...');
     await syncAllAssetSnapshots(365);
     
     return NextResponse.json({

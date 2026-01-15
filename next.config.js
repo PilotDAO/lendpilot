@@ -22,7 +22,25 @@ const nextConfig = {
         protocol: "https",
         hostname: "raw.githubusercontent.com",
       },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "3000",
+        pathname: "/api/v1/asset-icon/**",
+      },
     ],
+    // Allow unoptimized images from our API endpoint
+    unoptimized: false,
+  },
+  webpack: (config, { isServer }) => {
+    // Fix for ECharts in Next.js
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+    return config;
   },
 }
 

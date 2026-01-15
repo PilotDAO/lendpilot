@@ -79,11 +79,16 @@ const columns = (marketKey: string): ColumnDef<Reserve>[] => [
         >
           {reserve.imageUrl && (
             <Image
-              src={reserve.imageUrl}
+              src={`/api/v1/asset-icon/${marketKey}/${normalizedAddress}`}
               alt={reserve.symbol}
               width={24}
               height={24}
               className="rounded-full"
+              unoptimized
+              onError={(e) => {
+                // Hide image if it fails to load
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
             />
           )}
           <div>
