@@ -7,7 +7,7 @@ import { validateMarketKey } from "@/lib/utils/market";
 
 async function getTrendsData(
   marketKey: string,
-  window: "30d" | "6m" | "1y" = "30d"
+  window: "7d" | "30d" | "3m" | "6m" | "1y" = "30d"
 ): Promise<MarketTrendsResponse | null> {
   if (!validateMarketKey(marketKey)) {
     return null;
@@ -41,7 +41,7 @@ export default async function BorrowChangePage({
   searchParams: { window?: string };
 }) {
   const { marketKey } = params;
-  const window = (searchParams.window || "30d") as "30d" | "6m" | "1y";
+  const window = (searchParams.window || "30d") as "7d" | "30d" | "3m" | "6m" | "1y";
 
   const data = await getTrendsData(marketKey, window);
 

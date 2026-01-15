@@ -39,8 +39,15 @@ export function MarketTotalsChart({ data }: MarketTotalsChartProps) {
     // - Top (orange): Borrowed amount
     // - Total height = Total Supply (availableLiquidity + borrowed = totalSupplied)
     // Note: totalSuppliedUSD = availableLiquidityUSD + totalBorrowedUSD
-    const supplyData = data.map((d) => d.availableLiquidityUSD);
+    // 
+    // Visual representation:
+    // - Green bar (bottom) = availableLiquidityUSD (available to borrow)
+    // - Orange bar (top, stacked) = totalBorrowedUSD (already borrowed)
+    // - Blue line = totalSuppliedUSD (total deposits/supply)
+    // Relationship: Supply = Available Liquidity + Borrowing
+    const availableData = data.map((d) => d.availableLiquidityUSD);
     const borrowingData = data.map((d) => d.totalBorrowedUSD);
+    const supplyData = data.map((d) => d.totalSuppliedUSD);
 
     return {
       tooltip: {
@@ -50,19 +57,27 @@ export function MarketTotalsChart({ data }: MarketTotalsChartProps) {
         },
         formatter: (params: any) => {
           const date = params[0].axisValue;
+          const dataPoint = data.find((d) => d.date === date);
           let result = `<div style="padding: 4px;"><strong>${date}</strong><br/>`;
-          let totalSupply = 0;
+          
+          // Show individual components
           params.forEach((param: any) => {
             result += `${param.seriesName}: ${formatUSD(param.value)}<br/>`;
-            totalSupply += param.value;
           });
-          result += `<hr style="margin: 4px 0; border: none; border-top: 1px solid #eee;"/>`;
-          result += `<strong>Total Supply: ${formatUSD(totalSupply)}</strong></div>`;
+          
+          if (dataPoint) {
+            result += `<hr style="margin: 4px 0; border: none; border-top: 1px solid #eee;"/>`;
+            result += `<strong>Total Supply: ${formatUSD(dataPoint.totalSuppliedUSD)}</strong><br/>`;
+            result += `(Available + Borrowing = Total Supply)</div>`;
+          } else {
+            result += `</div>`;
+          }
+          
           return result;
         },
       },
       legend: {
-        data: ["Supply", "Borrowing"],
+        data: ["Supply", "Available Liquidity", "Borrowing"],
         top: 10,
         textStyle: {
           color: "#6B7280",
@@ -107,10 +122,10 @@ export function MarketTotalsChart({ data }: MarketTotalsChartProps) {
       },
       series: [
         {
-          name: "Supply",
+          name: "Available Liquidity",
           type: "bar",
           stack: "totals",
-          data: supplyData,
+          data: availableData,
           itemStyle: {
             color: "#10B981", // Green
           },
@@ -123,6 +138,22 @@ export function MarketTotalsChart({ data }: MarketTotalsChartProps) {
           itemStyle: {
             color: "#F59E0B", // Amber
           },
+        },
+        {
+          name: "Supply",
+          type: "line",
+          data: supplyData,
+          itemStyle: {
+            color: "#3B82F6", // Blue
+          },
+          lineStyle: {
+            width: 3,
+          },
+          symbol: "circle",
+          symbolSize: 6,
+          // Show Supply as a line on top of the stacked bars
+          // This represents total deposits (Available + Borrowing)
+          z: 10, // Higher z-index to appear on top
         },
       ],
     };

@@ -79,6 +79,10 @@ export function MicroBarChart({
       ],
       tooltip: {
         trigger: "axis",
+        // Ensure tooltip is not clipped/covered by surrounding layout (e.g., table header)
+        appendToBody: true,
+        confine: false,
+        extraCssText: "z-index: 999999 !important;",
         formatter: (params: any) => {
           if (!stats) return "";
           const param = params[0];

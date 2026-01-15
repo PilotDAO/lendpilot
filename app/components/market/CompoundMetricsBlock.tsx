@@ -35,6 +35,14 @@ interface CachedData {
   window: string;
 }
 
+type TimeseriesMetadata = {
+  window: "7d" | "30d" | "3m" | "6m" | "1y";
+  expectedDays: number;
+  actualDays: number;
+  coveragePercent: number;
+  dateRange: { from: string; to: string } | null;
+};
+
 // Cache key for sessionStorage
 const getCacheKey = (marketKey: string, window: string) => 
   `trends_${marketKey}_${window}`;
@@ -164,12 +172,13 @@ export function CompoundMetricsBlock({
   marketName,
   description,
 }: CompoundMetricsBlockProps) {
-  const [timeWindow, setTimeWindow] = useState<"30d" | "6m" | "1y">("30d");
+  const [timeWindow, setTimeWindow] = useState<"7d" | "30d" | "3m" | "6m" | "1y">("7d");
   const [trendsDataState, setTrendsDataState] = useState(trendsData || null);
   const [trendsDataChart, setTrendsDataChart] = useState<MarketTrendData[]>(initialTimeseriesData);
   const [loading, setLoading] = useState(initialTimeseriesData.length === 0);
   const [error, setError] = useState<string | null>(null);
   const [isUsingCache, setIsUsingCache] = useState(false);
+  const [timeseriesMeta, setTimeseriesMeta] = useState<TimeseriesMetadata | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Загружаем данные трендов, если не переданы
@@ -183,7 +192,7 @@ export function CompoundMetricsBlock({
       try {
         const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
         const response = await fetch(
-          `${baseUrl}/api/v1/market/${marketKey}/timeseries?window=30d`
+          `${baseUrl}/api/v1/market/${marketKey}/timeseries?window=7d`
         );
         if (response.ok) {
           const data = await response.json();
@@ -238,8 +247,16 @@ export function CompoundMetricsBlock({
     // Update current timeWindow ref
     currentTimeWindowRef.current = timeWindow;
     
-    // If we have initial data for 30d and user selects 30d, use it immediately
-    if (timeWindow === "30d" && initialDataRef.current.length > 0) {
+    // Clear metadata and cache when window changes to avoid showing stale data
+    setTimeseriesMeta(null);
+    if (typeof window !== "undefined") {
+      // Clear cache for this market/window to force fresh fetch with proper date filtering
+      const cacheKey = getCacheKey(marketKey, timeWindow);
+      sessionStorage.removeItem(cacheKey);
+    }
+    
+    // If we have initial data for 7d and user selects 7d, use it immediately
+    if (timeWindow === "7d" && initialDataRef.current.length > 0) {
       setTrendsDataChart(initialDataRef.current);
       setLoading(false);
       setIsUsingCache(false);
@@ -260,38 +277,14 @@ export function CompoundMetricsBlock({
 
       setLoading(true);
       setError(null);
+      setTimeseriesMeta(null); // Clear metadata when fetching new data
 
-      // Try to load from cache first
-      if (typeof window !== "undefined") {
-        const cacheKey = getCacheKey(marketKey, requestedTimeWindow);
-        const cached = sessionStorage.getItem(cacheKey);
-        
-        if (cached) {
-          try {
-            const cachedData: CachedData = JSON.parse(cached);
-            const now = Date.now();
-            
-            // Use cached data if still valid and timeWindow hasn't changed
-            if (now - cachedData.timestamp < CACHE_TTL && cachedData.window === requestedTimeWindow && currentTimeWindowRef.current === requestedTimeWindow) {
-              setTrendsDataChart(cachedData.data);
-              setLoading(false);
-              setIsUsingCache(true);
-              
-              // Still fetch fresh data in background
-              fetchFreshData(abortController, requestedTimeWindow);
-              return;
-            }
-          } catch (e) {
-            // Invalid cache, continue with fresh fetch
-            console.warn("Failed to parse cached data:", e);
-          }
-        }
-      }
-
+      // Skip cache - always fetch fresh to ensure proper date filtering
+      // Cache can contain old data from before date filtering was implemented
       await fetchFreshData(abortController, requestedTimeWindow);
     };
 
-    const fetchFreshData = async (abortController: AbortController, requestedTimeWindow: "30d" | "6m" | "1y") => {
+    const fetchFreshData = async (abortController: AbortController, requestedTimeWindow: "7d" | "30d" | "3m" | "6m" | "1y") => {
       try {
         const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
         const url = `${baseUrl}/api/v1/market/${marketKey}/timeseries?window=${requestedTimeWindow}`;
@@ -326,6 +319,13 @@ export function CompoundMetricsBlock({
         // Check if timeWindow changed during fetch - if so, abort
         if (currentTimeWindowRef.current !== requestedTimeWindow) {
           return;
+        }
+
+        // Metadata: show coverage + actual date range so user isn't misled
+        if (data?.metadata) {
+          setTimeseriesMeta(data.metadata as TimeseriesMetadata);
+        } else {
+          setTimeseriesMeta(null);
         }
         
         // Check if data is empty
@@ -404,6 +404,7 @@ export function CompoundMetricsBlock({
         if (!usedCache) {
           const errorMessage = err instanceof Error ? err.message : "Failed to load trends data";
           setError(errorMessage);
+          setTimeseriesMeta(null);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -451,7 +452,7 @@ export function CompoundMetricsBlock({
           {/* Time Range Chips - над графиком */}
           <div className="flex items-center justify-end gap-2 mb-2">
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
-              {(["30d", "6m", "1y"] as const).map((window) => (
+              {(["7d", "30d", "3m", "6m", "1y"] as const).map((window) => (
                 <button
                   key={window}
                   onClick={() => setTimeWindow(window)}
@@ -461,11 +462,29 @@ export function CompoundMetricsBlock({
                       : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   }`}
                 >
-                  {window === "30d" ? "30d" : window === "6m" ? "6m" : "1y"}
+                  {window}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Coverage warning (prevents misleading "3m" when only a few days exist) */}
+          {timeseriesMeta &&
+          timeseriesMeta.actualDays > 0 &&
+          timeseriesMeta.coveragePercent < 90 ? (
+            <div className="mb-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800">
+              Showing {timeseriesMeta.actualDays} of {timeseriesMeta.expectedDays} days for{" "}
+              <span className="font-semibold">{timeseriesMeta.window}</span>{" "}
+              ({timeseriesMeta.coveragePercent}% coverage)
+              {timeseriesMeta.dateRange ? (
+                <>
+                  {" "}
+                  — {timeseriesMeta.dateRange.from} → {timeseriesMeta.dateRange.to}
+                </>
+              ) : null}
+              . Historical backfill is in progress.
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="flex items-center justify-center h-[280px] text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg">

@@ -23,6 +23,14 @@ import { liveDataCache } from "@/lib/cache/cache-instances";
 import { withRetry } from "@/lib/utils/retry";
 import { BigNumber } from "@/lib/utils/big-number";
 import { calculateAverageLendingRates } from "@/lib/calculations/apr";
+import { prisma } from "@/lib/db/prisma";
+import type { DailySnapshot } from "@/lib/calculations/snapshots";
+import { aggregateMonthlySnapshots } from "@/lib/calculations/snapshots";
+import {
+  calculateLiquidityImpact,
+  type ReserveParameters,
+} from "@/lib/calculations/liquidity-impact";
+import scenarios from "@/data/liquidityImpactScenarios.json";
 
 interface AssetPageProps {
   params: Promise<{ marketKey: string; assetAddress: string }>;
@@ -150,71 +158,117 @@ async function fetchReserveData(
 }
 
 async function getSnapshotsData(marketKey: string, underlying: string) {
-  // Use internal API calls - Next.js will optimize these
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const timeout = 65000; // 65 seconds (slightly more than endpoint timeout)
-
-  const fetchWithTimeout = (url: string) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    return fetch(url, {
-      next: { revalidate: 3600 },
-      signal: controller.signal,
-    })
-      .then((response) => {
-        clearTimeout(timeoutId);
-        return response;
-      })
-      .catch((error) => {
-        clearTimeout(timeoutId);
-        if (error.name === "AbortError") {
-          throw new Error(`Request timeout after ${timeout}ms`);
-        }
-        throw error;
-      });
-  };
-
   try {
-    const [dailyResponse, monthlyResponse] = await Promise.allSettled([
-      fetchWithTimeout(
-        `${baseUrl}/api/v1/reserve/${marketKey}/${underlying}/snapshots/daily`
-      ).catch(() => ({ ok: false, json: async () => [] })),
-      fetchWithTimeout(
-        `${baseUrl}/api/v1/reserve/${marketKey}/${underlying}/snapshots/monthly`
-      ).catch(() => ({ ok: false, json: async () => [] })),
-    ]);
+    // Read directly from DB to avoid dependency on NEXT_PUBLIC_APP_URL (can be misconfigured in local dev)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 365);
+    cutoffDate.setUTCHours(0, 0, 0, 0);
 
-    const daily =
-      dailyResponse.status === "fulfilled" && dailyResponse.value.ok
-        ? await dailyResponse.value.json()
-        : [];
-    const monthly =
-      monthlyResponse.status === "fulfilled" && monthlyResponse.value.ok
-        ? await monthlyResponse.value.json()
-        : [];
+    const rows = await prisma.assetSnapshot.findMany({
+      where: {
+        marketKey,
+        underlyingAsset: underlying,
+        date: { gte: cutoffDate },
+      },
+      orderBy: { date: "asc" },
+      select: {
+        date: true,
+        timestamp: true,
+        blockNumber: true,
+        supplyAPR: true,
+        borrowAPR: true,
+        totalSuppliedUSD: true,
+        totalBorrowedUSD: true,
+        utilizationRate: true,
+        oraclePrice: true,
+        liquidityIndex: true,
+        variableBorrowIndex: true,
+      },
+    });
 
+    const daily: DailySnapshot[] = rows.map((s) => ({
+      date: s.date.toISOString().split("T")[0],
+      timestamp: Number(s.timestamp),
+      blockNumber: Number(s.blockNumber),
+      supplyAPR: s.supplyAPR,
+      borrowAPR: s.borrowAPR,
+      totalSuppliedUSD: s.totalSuppliedUSD,
+      totalBorrowedUSD: s.totalBorrowedUSD,
+      utilizationRate: s.utilizationRate,
+      price: s.oraclePrice,
+      liquidityIndex: s.liquidityIndex,
+      variableBorrowIndex: s.variableBorrowIndex,
+    }));
+
+    const monthly = aggregateMonthlySnapshots(daily);
     return { daily, monthly };
   } catch (error) {
-    console.error("Error fetching snapshots:", error);
+    console.error("Error fetching snapshots from DB:", error);
     return { daily: [], monthly: [] };
   }
 }
 
-async function getLiquidityImpactData(marketKey: string, underlying: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+function loadScenariosForUnderlying(normalizedUnderlying: string): Array<{ action: "Deposit" | "Borrow" | "Repay" | "Withdraw"; amount: string }> {
+  const cfg = scenarios as any;
+  return cfg.overrides?.[normalizedUnderlying] || cfg.default || [];
+}
+
+async function getLiquidityImpactData(marketKey: string, underlying: string, reserveData: ReserveData) {
   try {
-    const response = await fetch(
-      `${baseUrl}/api/v1/reserve/${marketKey}/${underlying}/liquidity-impact`,
-      { next: { revalidate: 60 } }
-    ).catch(() => ({ ok: false, json: async () => ({ results: [] }) }));
-    if (!response.ok) {
-      return { results: [] };
+    const aaveKitReserve = await queryReserve(marketKey, underlying);
+    if (!aaveKitReserve) {
+      return { results: [] as any[] };
     }
-    return await response.json();
+
+    const optimalUsageRate = aaveKitReserve.optimalUsageRate
+      ? new BigNumber(aaveKitReserve.optimalUsageRate).toNumber()
+      : 0.8;
+    const baseRate = aaveKitReserve.baseVariableBorrowRate
+      ? new BigNumber(aaveKitReserve.baseVariableBorrowRate).toNumber()
+      : 0.0;
+    const slope1 = aaveKitReserve.variableRateSlope1
+      ? new BigNumber(aaveKitReserve.variableRateSlope1).toNumber()
+      : 0.04;
+    const slope2 = aaveKitReserve.variableRateSlope2
+      ? new BigNumber(aaveKitReserve.variableRateSlope2).toNumber()
+      : 0.75;
+    const reserveFactor = aaveKitReserve.reserveFactor
+      ? new BigNumber(aaveKitReserve.reserveFactor).toNumber()
+      : 0.1;
+
+    const params: ReserveParameters = {
+      optimalUtilization: optimalUsageRate,
+      baseRate,
+      slope1,
+      slope2,
+    };
+
+    const currentState = reserveData.currentState;
+    const scenariosList = loadScenariosForUnderlying(underlying);
+
+    const results = scenariosList.map((scenario) => {
+      const impact = calculateLiquidityImpact(
+        {
+          borrowedUSD: currentState.totalBorrowedUSD,
+          availableUSD: currentState.totalSuppliedUSD - currentState.totalBorrowedUSD,
+          supplyAPR: currentState.supplyAPR,
+          borrowAPR: currentState.borrowAPR,
+        },
+        { action: scenario.action, amountUSD: parseFloat(scenario.amount) },
+        params,
+        reserveFactor
+      );
+
+      return {
+        scenario: { action: scenario.action, amountUSD: parseFloat(scenario.amount) },
+        impact,
+      };
+    });
+
+    return { results };
   } catch (error) {
-    console.error("Error fetching liquidity impact:", error);
-    return { results: [] };
+    console.error("Error calculating liquidity impact:", error);
+    return { results: [] as any[] };
   }
 }
 
@@ -232,20 +286,20 @@ export default async function AssetPage({ params }: AssetPageProps) {
     notFound();
   }
 
-  // Fetch data in parallel - use graceful degradation
-  const [reserve, snapshots, liquidityImpact] = await Promise.allSettled([
+  // Fetch reserve + snapshots in parallel (liquidity impact depends on reserve data)
+  const [reserve, snapshots] = await Promise.allSettled([
     getReserveData(marketKey, normalizedAddress),
     getSnapshotsData(marketKey, normalizedAddress),
-    getLiquidityImpactData(marketKey, normalizedAddress),
   ]);
 
   const reserveData = reserve.status === "fulfilled" ? reserve.value : null;
   const snapshotsData = snapshots.status === "fulfilled" ? snapshots.value : { daily: [], monthly: [] };
-  const liquidityImpactData = liquidityImpact.status === "fulfilled" ? liquidityImpact.value : { results: [] };
 
   if (!reserveData) {
     notFound();
   }
+
+  const liquidityImpactData = await getLiquidityImpactData(marketKey, normalizedAddress, reserveData);
 
   // Calculate average lending rates from daily snapshots
   const averageRates = calculateAverageLendingRates(

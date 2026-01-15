@@ -28,6 +28,14 @@ interface Reserve {
     utilizationRate: number;
   };
   apr30dSeries?: Array<{ date: string; borrowAPR: number }>;
+  apr30dStats?: {
+    last: number;
+    min: number;
+    max: number;
+    delta30d: number;
+    firstDate: string;
+    lastDate: string;
+  } | null;
 }
 
 interface ReservesTableProps {
@@ -117,7 +125,7 @@ const columns = (marketKey: string): ColumnDef<Reserve>[] => [
     cell: ({ row }) => {
       const reserve = row.original;
       const series = reserve.apr30dSeries;
-      const stats = series ? calculate30DayAPRStats(series) : null;
+      const stats = reserve.apr30dStats ?? (series ? calculate30DayAPRStats(series) : null);
       const delta = stats ? formatDelta30d(stats.delta30d) : null;
 
       return (
@@ -140,59 +148,73 @@ export function ReservesTable({ reserves, marketKey }: ReservesTableProps) {
   
   const tableColumns = columns(marketKey);
 
-  // Load 30-day APR series for each reserve (lazy loading)
+  // Load 30-day APR series for all reserves in one request (avoid N+1)
   useEffect(() => {
-    const loadAPRSeries = async () => {
-      const updatedReserves = await Promise.all(
-        reserves.map(async (reserve) => {
-          if (reserve.apr30dSeries) {
-            return reserve; // Already loaded
-          }
+    const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+    const cacheKey = `apr30d:${marketKey}`;
+    const controller = new AbortController();
 
-          try {
-            const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-            const response = await fetch(
-              `${baseUrl}/api/v1/reserve/${marketKey}/${reserve.underlyingAsset}/snapshots/daily`
-            );
-
-            if (response.ok) {
-              const snapshots = await response.json();
-              
-              // Check if we have enough snapshots
-              if (!snapshots || snapshots.length === 0) {
-                console.debug(`No snapshots for ${reserve.symbol}`);
-                return reserve;
-              }
-
-              const series = calculate30DayAPRSeries(
-                snapshots.map((s: any) => ({
-                  date: s.date,
-                  borrowAPR: s.borrowAPR,
-                  timestamp: s.timestamp,
-                }))
-              );
-
-              // Log if series is empty (insufficient data)
-              if (!series || series.length === 0) {
-                console.debug(`Insufficient data for 30d APR series for ${reserve.symbol}: ${snapshots.length} snapshots`);
-              }
-
-              return { ...reserve, apr30dSeries: series };
-            } else {
-              console.warn(`Failed to fetch snapshots for ${reserve.symbol}: ${response.status} ${response.statusText}`);
-            }
-          } catch (error) {
-            console.warn(`Failed to load APR series for ${reserve.symbol}:`, error);
-          }
-
-          return reserve;
-        })
-      );
-
-      setReservesWithAPR(updatedReserves);
+    const applySeries = (
+      seriesByUnderlying: Record<string, Array<{ date: string; borrowAPR: number }>>,
+      statsByUnderlying?: Record<string, any>
+    ) => {
+      const updated = reserves.map((reserve) => {
+        const key = normalizeAddress(reserve.underlyingAsset);
+        const series = seriesByUnderlying?.[key];
+        const stats = statsByUnderlying ? (statsByUnderlying as any)[key] : undefined;
+        return series ? { ...reserve, apr30dSeries: series, apr30dStats: stats ?? reserve.apr30dStats } : reserve;
+      });
+      setReservesWithAPR(updated);
     };
 
-    loadAPRSeries();
+    const load = async () => {
+      // Try session cache first
+      if (typeof window !== "undefined") {
+        const raw = sessionStorage.getItem(cacheKey);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as {
+              ts: number;
+              seriesByUnderlying: Record<string, any>;
+              statsByUnderlying?: Record<string, any>;
+            };
+            if (Date.now() - parsed.ts < CACHE_TTL_MS) {
+              applySeries(parsed.seriesByUnderlying, parsed.statsByUnderlying);
+              // Cache is fresh: skip background refresh to avoid re-rendering micro charts
+              return;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      try {
+        const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+        const response = await fetch(`${baseUrl}/api/v1/market/${marketKey}/apr30d`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const json = await response.json();
+        const seriesByUnderlying = (json?.seriesByUnderlying || {}) as Record<string, Array<{ date: string; borrowAPR: number }>>;
+        const statsByUnderlying = (json?.statsByUnderlying || {}) as Record<string, any>;
+        applySeries(seriesByUnderlying, statsByUnderlying);
+
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), seriesByUnderlying, statsByUnderlying }));
+          } catch {
+            // ignore quota
+          }
+        }
+      } catch (e) {
+        if ((e as any)?.name === "AbortError") return;
+        console.warn("Failed to load bulk 30d APR series:", e);
+      }
+    };
+
+    load();
+    return () => controller.abort();
   }, [reserves, marketKey]);
 
   const table = useReactTable({

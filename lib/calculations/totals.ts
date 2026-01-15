@@ -57,40 +57,83 @@ export function priceToUSD(
  * Convert price.priceInEth from Subgraph to USD price
  * 
  * Subgraph's price.priceInEth format varies by network:
- * - Ethereum: USD * 1e8 (e.g., 312772000000000 = 3127.72 USD)
- * - Arbitrum and other L2s: May return price already in USD format
+ * - Ethereum: USD * 1e8 (e.g., 312772000000000 = 3127.72 USD, 26356060 = 0.26356060 USD)
+ * - Other L2s: May use different formats or have incomplete data
  * 
- * Auto-detection logic:
- * - If value >= 1e10: Assume USD * 1e8 format, divide by 1e8
- * - If value < 1e10: Assume already in USD format, use directly
+ * IMPORTANT: For Ethereum, ALL prices are in USD * 1e8 format, regardless of value magnitude.
+ * The previous auto-detection logic was incorrect - it assumed values < 1e10 were already in USD,
+ * but even small values like 26356060 are still in USD * 1e8 format (0.26356060 USD).
  * 
  * @param priceInEth - The price.priceInEth from Subgraph
  * @param symbol - Optional token symbol for logging
+ * @param marketKey - Optional market key to determine price format (defaults to ethereum-v3)
  */
 export function priceFromSubgraphToUSD(
   priceInEth: string,
-  symbol?: string
+  symbol?: string,
+  marketKey?: string
 ): number {
   const price = new BigNumber(priceInEth);
   const priceValue = price.toNumber();
   
-  // Auto-detect format based on value magnitude
-  // Values >= 1e10 are likely in USD * 1e8 format (e.g., 312772000000000 for WETH)
-  // Values < 1e10 are likely already in USD format (e.g., 1752.66 for WETH on Arbitrum)
-  if (priceValue >= 1e10) {
-    // Large values: USD * 1e8 format, divide by 1e8
+  // For Ethereum, always use USD * 1e8 format
+  // For other networks, use auto-detection but be more conservative
+  const isEthereum = !marketKey || marketKey === 'ethereum-v3' || 
+                     marketKey === 'ethereum-ether-fi-v3' || 
+                     marketKey === 'ethereum-lido-v3' || 
+                     marketKey === 'ethereum-horizon-v3';
+  
+  if (priceValue === 0) {
+    // Zero price - return as is (often indicates missing data in Subgraph)
+    return 0;
+  }
+  
+  if (isEthereum) {
+    // Ethereum: Always USD * 1e8 format, regardless of value magnitude
     const result = price.div(PRICE_BASE).toNumber();
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD*1e8, price=${result}`);
+      console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD*1e8 (Ethereum), price=${result}`);
     }
     return result;
   } else {
-    // Small values: Already in USD format
-    const result = priceValue;
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD (already), price=${result}`);
+    // Other networks: Auto-detect format
+    // If value >= 1e6, likely USD * 1e8 format
+    // If value < 1e6 and < 1, likely already in USD format
+    // If value >= 1 and < 1e6, try both formats and see which makes more sense
+    if (priceValue >= 1e6) {
+      // Large values: Likely USD * 1e8 format
+      const result = price.div(PRICE_BASE).toNumber();
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD*1e8 (auto-detected), price=${result}`);
+      }
+      return result;
+    } else if (priceValue < 1) {
+      // Very small values: Likely already in USD format
+      const result = priceValue;
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD (already, <1), price=${result}`);
+      }
+      return result;
+    } else {
+      // Medium values (1 <= value < 1e6): Could be either format
+      // For non-Ethereum networks, if the value looks like a reasonable USD price,
+      // use it directly. Otherwise, divide by 1e8.
+      // If value is between 1 and 1000, it's likely already in USD
+      if (priceValue >= 1 && priceValue < 1000) {
+        const result = priceValue;
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD (reasonable range), price=${result}`);
+        }
+        return result;
+      } else {
+        // Try USD * 1e8 format
+        const result = price.div(PRICE_BASE).toNumber();
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[priceFromSubgraphToUSD] ${symbol || 'unknown'}: priceInEth=${priceInEth}, format=USD*1e8 (fallback), price=${result}`);
+        }
+        return result;
+      }
     }
-    return result;
   }
 }
 

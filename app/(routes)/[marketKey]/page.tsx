@@ -16,6 +16,7 @@ import { withRetry } from "@/lib/utils/retry";
 import { BigNumber } from "@/lib/utils/big-number";
 import { prisma } from "@/lib/db/prisma";
 import { calculateMarketTrends } from "@/lib/calculations/trends";
+import { getDataSourceForMarket } from "@/lib/utils/data-source";
 
 interface MarketPageProps {
   params: Promise<{ marketKey: string }>;
@@ -139,14 +140,27 @@ interface TimeseriesData {
 
 async function getTimeseriesData(
   marketKey: string,
-  window: "30d" | "6m" | "1y" = "30d"
+  window: "7d" | "30d" | "3m" | "6m" | "1y" = "30d"
 ): Promise<TimeseriesData[]> {
   try {
+    const dataSource = getDataSourceForMarket(marketKey);
+    
+    // Calculate cutoff date for the window (only last N days)
+    const expectedDays = window === "7d" ? 7 : window === "30d" ? 30 : window === "3m" ? 90 : window === "6m" ? 180 : 365;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - expectedDays);
+    cutoffDate.setUTCHours(0, 0, 0, 0);
+
     // Try to fetch from database first (fast path)
+    // Filter by date to only return data for the requested window period
     const dbData = await prisma.marketTimeseries.findMany({
       where: {
         marketKey,
         window,
+        dataSource,
+        date: {
+          gte: cutoffDate, // Only data from the last N days
+        },
       },
       orderBy: {
         date: 'asc',
@@ -156,11 +170,24 @@ async function getTimeseriesData(
         totalSuppliedUSD: true,
         totalBorrowedUSD: true,
         availableLiquidityUSD: true,
+        updatedAt: true,
       },
     });
 
     // If we have data in DB, return it immediately
     if (dbData.length > 0) {
+      // Log data freshness for debugging
+      const latestUpdate = dbData[dbData.length - 1]?.updatedAt;
+      if (latestUpdate) {
+        const hoursSinceUpdate = (Date.now() - latestUpdate.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceUpdate > 24) {
+          console.warn(
+            `⚠️  [getTimeseriesData] Data for ${marketKey} (${window}) is ${hoursSinceUpdate.toFixed(1)} hours old. ` +
+            `Last updated: ${latestUpdate.toISOString()}. Consider running sync.`
+          );
+        }
+      }
+      
       return dbData.map((row) => ({
         date: row.date.toISOString().split('T')[0],
         totalSuppliedUSD: row.totalSuppliedUSD,
@@ -169,21 +196,29 @@ async function getTimeseriesData(
       }));
     }
 
-    // Fallback: Calculate from Subgraph if DB is empty (slow path)
-    console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
-    
-    const trendsData = await calculateMarketTrends(marketKey, window);
-    
-    if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
+    // Fallback logic based on data source (dataSource already defined above)
+    if (dataSource === 'subgraph') {
+      // For Ethereum V3: fallback to Subgraph (slow path)
+      console.warn(`⚠️  No DB data for ${marketKey} (${window}), falling back to Subgraph`);
+      
+      const trendsData = await calculateMarketTrends(marketKey, window);
+      
+      if (!trendsData || !trendsData.data || trendsData.data.length === 0) {
+        return [];
+      }
+
+      return trendsData.data.map((trend) => ({
+        date: trend.date,
+        totalSuppliedUSD: trend.totalSuppliedUSD,
+        totalBorrowedUSD: trend.totalBorrowedUSD,
+        availableLiquidityUSD: trend.availableLiquidityUSD,
+      }));
+    } else {
+      // For other markets: data should be collected via AaveKit cron
+      // Return empty array - data will be available after first sync
+      console.warn(`⚠️  No DB data for ${marketKey} (${window}). Data will be available after AaveKit sync runs.`);
       return [];
     }
-
-    return trendsData.data.map((trend) => ({
-      date: trend.date,
-      totalSuppliedUSD: trend.totalSuppliedUSD,
-      totalBorrowedUSD: trend.totalBorrowedUSD,
-      availableLiquidityUSD: trend.availableLiquidityUSD,
-    }));
   } catch (error) {
     console.error(`Error fetching timeseries for ${marketKey}:`, error);
     return [];
@@ -204,11 +239,15 @@ export default async function MarketPage({ params }: MarketPageProps) {
   }
 
   // Fetch market data, timeseries data, and trends in parallel
+  // Use 7d as default window as requested
   const [marketData, timeseriesData, trendsResponse] = await Promise.allSettled([
     getMarketData(marketKey),
-    getTimeseriesData(marketKey, "30d"),
+    getTimeseriesData(marketKey, "7d"),
     // Получаем тренды для изменений (может быть null при ошибке)
-    calculateMarketTrends(marketKey, "30d").catch(() => null),
+    // Only calculate trends for Subgraph markets (Ethereum V3)
+    getDataSourceForMarket(marketKey) === 'subgraph'
+      ? calculateMarketTrends(marketKey, "7d").catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   // Handle errors gracefully

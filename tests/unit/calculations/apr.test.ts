@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { calculateAPRFromIndices, calculateAverageLendingRates } from "@/lib/calculations/apr";
 
 describe("APR calculations", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("should calculate APR from indices", () => {
     // Test with known values - 1% daily growth over 365 days
     // If index grows 1% per day for 365 days: (1.01)^365 ≈ 37.78
@@ -43,5 +47,33 @@ describe("APR calculations", () => {
     expect(rates["1d"]).toBeDefined();
     expect(rates["7d"]).toBeDefined();
     expect(rates["30d"]).toBeDefined();
+  });
+
+  it("should not return N/A for 1d when system time is ahead of last daily snapshot", () => {
+    vi.useFakeTimers();
+    // System time is noon on day 2 (in seconds), but last snapshot is at midnight on day 2.
+    vi.setSystemTime(new Date((2 * 86400 + 12 * 3600) * 1000));
+
+    const snapshots = [
+      {
+        liquidityIndex: "1000000000000000000000000000",
+        variableBorrowIndex: "1000000000000000000000000000",
+        timestamp: 0, // day 0 midnight
+      },
+      {
+        liquidityIndex: "1010000000000000000000000000",
+        variableBorrowIndex: "1010000000000000000000000000",
+        timestamp: 86400, // day 1 midnight
+      },
+      {
+        liquidityIndex: "1020000000000000000000000000",
+        variableBorrowIndex: "1020000000000000000000000000",
+        timestamp: 2 * 86400, // day 2 midnight (latest snapshot)
+      },
+    ];
+
+    const rates = calculateAverageLendingRates(snapshots);
+    expect(rates["1d"].supplyAPR).not.toBeNull();
+    expect(rates["1d"].borrowAPR).not.toBeNull();
   });
 });

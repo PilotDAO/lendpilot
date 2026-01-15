@@ -52,6 +52,14 @@ interface StablecoinRow {
   imageUrl?: string;
   name: string;
   apr30dSeries?: Array<{ date: string; borrowAPR: number }>;
+  apr30dStats?: {
+    last: number;
+    min: number;
+    max: number;
+    delta30d: number;
+    firstDate: string;
+    lastDate: string;
+  } | null;
 }
 
 const columns: ColumnDef<StablecoinRow>[] = [
@@ -203,7 +211,7 @@ const columns: ColumnDef<StablecoinRow>[] = [
     cell: ({ row }) => {
       const item = row.original;
       const series = item.apr30dSeries;
-      const stats = series ? calculate30DayAPRStats(series) : null;
+      const stats = item.apr30dStats ?? (series ? calculate30DayAPRStats(series) : null);
       const delta = stats ? formatDelta30d(stats.delta30d) : null;
 
       return (
@@ -249,92 +257,65 @@ export function StablecoinsTable({ data }: StablecoinsTableProps) {
 
   const [rows, setRows] = useState<StablecoinRow[]>(initialRows);
 
-  // Load 30-day APR series for each stablecoin-market combination (lazy loading)
-  // Load sequentially to avoid overwhelming the server with parallel requests
+  // Load 30-day APR series for all stablecoin-market rows in one request (avoid N+1 / sequential waterfall)
   useEffect(() => {
-    const loadAPRSeries = async () => {
-      const updatedRows = [...initialRows];
-      
-      // Load sequentially with small delay to avoid overwhelming the server
-      for (let i = 0; i < updatedRows.length; i++) {
-        const row = updatedRows[i];
-        
-        if (row.apr30dSeries) {
-          continue; // Already loaded
+    const CACHE_TTL_MS = 5 * 60 * 1000;
+    const cacheKey = `apr30d:stablecoins`;
+    const controller = new AbortController();
+
+    const applyBulk = (payload: any) => {
+      const seriesByKey = (payload?.seriesByKey || {}) as Record<string, Array<{ date: string; borrowAPR: number }>>;
+      const statsByKey = (payload?.statsByKey || {}) as Record<string, any>;
+      const updated = initialRows.map((row) => {
+        const key = `${row.marketKey}:${normalizeAddress(row.address)}`;
+        const series = seriesByKey[key];
+        const stats = statsByKey[key];
+        return series ? { ...row, apr30dSeries: series, apr30dStats: stats ?? null } : row;
+      });
+      setRows(updated);
+    };
+
+    const load = async () => {
+      // cache
+      if (typeof window !== "undefined") {
+        const raw = sessionStorage.getItem(cacheKey);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as { ts: number; payload: any };
+            if (Date.now() - parsed.ts < CACHE_TTL_MS) {
+              applyBulk(parsed.payload);
+              // Cache is fresh: skip background refresh to avoid re-rendering micro charts
+              return;
+            }
+          } catch {}
         }
+      }
 
-        try {
-          const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-          // Normalize address before making request
-          const normalizedAddress = normalizeAddress(row.address);
-          // Create abort controller for timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 65000); // 65 seconds
-          
-          const response = await fetch(
-            `${baseUrl}/api/v1/reserve/${row.marketKey}/${normalizedAddress}/snapshots/daily`,
-            {
-              signal: controller.signal,
-            }
-          );
-          
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const snapshots = await response.json();
-            
-            // Check if we have enough snapshots
-            if (!snapshots || snapshots.length === 0) {
-              console.debug(`No snapshots for ${row.symbol} in ${row.marketKey}`);
-              continue;
-            }
-
-            const series = calculate30DayAPRSeries(
-              snapshots.map((s: any) => ({
-                date: s.date,
-                borrowAPR: s.borrowAPR,
-                timestamp: s.timestamp,
-              }))
-            );
-
-            // Log if series is empty (insufficient data)
-            if (!series || series.length === 0) {
-              console.debug(`Insufficient data for 30d APR series for ${row.symbol} in ${row.marketKey}: ${snapshots.length} snapshots, ${snapshots.filter((s: any) => s.borrowAPR > 0).length} with valid APR`);
-            } else {
-              // Update the row with series
-              updatedRows[i] = { ...row, apr30dSeries: series };
-              // Update state incrementally to show progress
-              setRows([...updatedRows]);
-            }
-          } else {
-            // Log error with status and response
-            let errorText = "";
-            try {
-              errorText = await response.text();
-            } catch {
-              errorText = "Could not read error response";
-            }
-            console.warn(
-              `Failed to fetch snapshots for ${row.symbol} in ${row.marketKey}: ${response.status} ${response.statusText}`,
-              errorText ? ` - ${errorText.substring(0, 200)}` : ""
-            );
-          }
-        } catch (error) {
-          if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
-            console.warn(`Request timeout for ${row.symbol} in ${row.marketKey} (snapshot generation may take > 60s)`);
-          } else {
-            console.warn(`Failed to load APR series for ${row.symbol} in ${row.marketKey}:`, error);
-          }
+      try {
+        const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+        const items = initialRows.map((r) => ({ marketKey: r.marketKey, underlying: normalizeAddress(r.address) }));
+        const resp = await fetch(`${baseUrl}/api/v1/apr30d/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+          signal: controller.signal,
+        });
+        if (!resp.ok) return;
+        const payload = await resp.json();
+        applyBulk(payload);
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), payload }));
+          } catch {}
         }
-        
-        // Small delay between requests to avoid overwhelming the server
-        if (i < updatedRows.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
+      } catch (e) {
+        if ((e as any)?.name === "AbortError") return;
+        console.warn("Failed to load stablecoins bulk 30d APR:", e);
       }
     };
 
-    loadAPRSeries();
+    load();
+    return () => controller.abort();
   }, [initialRows]);
 
   // Get unique markets for filter
@@ -390,7 +371,7 @@ export function StablecoinsTable({ data }: StablecoinsTableProps) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="relative z-10 isolate overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-800">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -431,12 +412,12 @@ export function StablecoinsTable({ data }: StablecoinsTableProps) {
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="group hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100"
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 group-hover:bg-gray-50 dark:group-hover:bg-gray-800"
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>

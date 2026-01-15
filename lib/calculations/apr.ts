@@ -60,7 +60,19 @@ export function calculateAverageLendingRates(snapshots: Array<{
   variableBorrowIndex: string;
   timestamp: number;
 }>) {
-  const now = Date.now() / 1000;
+  if (!snapshots || snapshots.length === 0) {
+    return {
+      "1d": { supplyAPR: null, borrowAPR: null },
+      "7d": { supplyAPR: null, borrowAPR: null },
+      "30d": { supplyAPR: null, borrowAPR: null },
+      "6m": { supplyAPR: null, borrowAPR: null },
+      "1y": { supplyAPR: null, borrowAPR: null },
+    };
+  }
+
+  // Anchor periods to the latest available snapshot instead of wall-clock time.
+  // This prevents "1 Day" showing N/A when snapshots are daily (only one point may exist in the last 24h).
+  const latestTimestamp = Math.max(...snapshots.map((s) => s.timestamp));
   const periods = [
     { name: "1d", days: 1 },
     { name: "7d", days: 7 },
@@ -72,7 +84,7 @@ export function calculateAverageLendingRates(snapshots: Array<{
   const results: Record<string, { supplyAPR: number | null; borrowAPR: number | null }> = {};
 
   for (const period of periods) {
-    const cutoffTime = now - period.days * 86400;
+    const cutoffTime = latestTimestamp - period.days * 86400;
     const periodSnapshots = snapshots.filter((s) => s.timestamp >= cutoffTime);
 
     if (periodSnapshots.length < 2) {

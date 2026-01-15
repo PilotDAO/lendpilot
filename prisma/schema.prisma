@@ -9,16 +9,45 @@ datasource db {
   provider = "postgresql"
 }
 
+// Raw data from AaveKit API (daily snapshots)
+model AaveKitRawSnapshot {
+  id              String   @id @default(cuid())
+  marketKey       String
+  date            DateTime @db.Date
+  timestamp       BigInt   // Unix timestamp when data was collected
+  
+  // Raw JSON response from AaveKit (complete API response)
+  rawData         Json     // Store complete response as JSON
+  
+  // Metadata
+  dataSource      String   @default("aavekit")
+  blockNumber     BigInt?
+  collectionTime  DateTime @default(now())
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([marketKey, date, dataSource])
+  @@index([marketKey, date])
+  @@index([marketKey])
+  @@index([date])
+  @@map("aavekit_raw_snapshots")
+}
+
 // Market timeseries data for charts (pre-aggregated)
 model MarketTimeseries {
   id        String   @id @default(cuid())
   marketKey String
   date      DateTime @db.Date
-  window    String   // "30d", "6m", "1y"
+  window    String   // "7d", "30d", "3m", "6m", "1y"
   
   totalSuppliedUSD      Float
   totalBorrowedUSD      Float
   availableLiquidityUSD Float
+  
+  // Metadata
+  dataSource    String   @default("subgraph") // "subgraph" | "aavekit"
+  rawDataId     String?  // Reference to AaveKitRawSnapshot.id
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -26,6 +55,7 @@ model MarketTimeseries {
   @@unique([marketKey, date, window])
   @@index([marketKey, window, date])
   @@index([marketKey, window])
+  @@index([rawDataId])
   @@map("market_timeseries")
 }
 
@@ -59,6 +89,10 @@ model AssetSnapshot {
   liquidityIndex      String  // BigNumber as string
   variableBorrowIndex  String  // BigNumber as string
   
+  // Metadata
+  dataSource    String   @default("subgraph") // "subgraph" | "aavekit"
+  rawDataId     String?  // Reference to AaveKitRawSnapshot.id (for the market snapshot)
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
@@ -66,5 +100,6 @@ model AssetSnapshot {
   @@index([marketKey, underlyingAsset, date])
   @@index([marketKey, date])
   @@index([marketKey, underlyingAsset])
+  @@index([rawDataId])
   @@map("asset_snapshots")
 }

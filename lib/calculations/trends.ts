@@ -17,6 +17,7 @@ export interface MarketTrendsDataPoint {
   totalSuppliedUSD: number;
   totalBorrowedUSD: number;
   availableLiquidityUSD: number;
+  index?: number; // Internal index for sorting
 }
 
 export interface AssetChange {
@@ -55,7 +56,7 @@ export interface MarketTrendsResponse {
  */
 export async function calculateMarketTrends(
   marketKey: string,
-  window: "30d" | "6m" | "1y" = "30d"
+  window: "7d" | "30d" | "3m" | "6m" | "1y" = "30d"
 ): Promise<MarketTrendsResponse> {
   const market = getMarket(marketKey);
   if (!market) {
@@ -74,7 +75,7 @@ export async function calculateMarketTrends(
 
   // Calculate date range
   const now = new Date();
-  const days = window === "30d" ? 30 : window === "6m" ? 180 : 365;
+  const days = window === "7d" ? 7 : window === "30d" ? 30 : window === "3m" ? 90 : window === "6m" ? 180 : 365;
   const startDate = new Date(now);
   startDate.setDate(startDate.getDate() - days);
   startDate.setUTCHours(23, 59, 59, 999); // End of day UTC
@@ -103,98 +104,137 @@ export async function calculateMarketTrends(
     endBlock
   );
 
-  // For each day, aggregate totals
+  // Process days in parallel batches for better performance
+  // Subgraph rate limit is usually ~100 req/sec, so we use 10 concurrent requests
+  const CONCURRENT_REQUESTS = 10;
+  const dates: Array<{ date: Date; index: number }> = [];
+  
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     date.setUTCHours(23, 59, 59, 999);
+    dates.push({ date, index: days - 1 - i });
+  }
 
-    const timestamp = Math.floor(date.getTime() / 1000);
-    const blockResult = await getBlockByTimestamp(timestamp);
-    const blockNumber = blockResult.blockNumber;
+  // Process dates in parallel batches
+  for (let batchStart = 0; batchStart < dates.length; batchStart += CONCURRENT_REQUESTS) {
+    const batch = dates.slice(batchStart, batchStart + CONCURRENT_REQUESTS);
+    
+    const batchResults = await Promise.allSettled(
+      batch.map(async ({ date, index }) => {
+        const timestamp = Math.floor(date.getTime() / 1000);
+        const blockResult = await getBlockByTimestamp(timestamp);
+        const blockNumber = blockResult.blockNumber;
 
-    try {
-      const reserves = await queryReservesAtBlock(
-        market.subgraphId,
-        poolEntityId,
-        blockNumber
-      );
-
-      let totalSuppliedUSD = 0;
-      let totalBorrowedUSD = 0;
-      let availableLiquidityUSD = 0;
-
-      for (const reserve of reserves) {
-        const normalizedAddress = normalizeAddress(reserve.underlyingAsset);
-        const priceUSD = priceFromSubgraphToUSD(reserve.price.priceInEth, reserve.symbol);
-        const decimals = reserve.decimals;
-
-        // Subgraph returns on-chain format, so use FromSubgraph functions
-        const suppliedUSD = calculateTotalSuppliedUSDFromSubgraph(
-          reserve.totalATokenSupply,
-          decimals,
-          priceUSD
-        );
-        const borrowedUSD = calculateTotalBorrowedUSDFromSubgraph(
-          reserve.totalCurrentVariableDebt,
-          decimals,
-          priceUSD
-        );
-        const availableUSD =
-          new BigNumber(reserve.availableLiquidity)
-            .div(new BigNumber(10).pow(decimals))
-            .times(priceUSD)
-            .toNumber();
-
-        totalSuppliedUSD += suppliedUSD;
-        totalBorrowedUSD += borrowedUSD;
-        availableLiquidityUSD += availableUSD;
-        
-        // Validate: totalSupplied should equal availableLiquidity + borrowed (with small tolerance for rounding)
-        const calculatedAvailable = suppliedUSD - borrowedUSD;
-        const diff = Math.abs(availableUSD - calculatedAvailable);
-        if (diff > 0.01) { // Allow 1 cent tolerance for rounding errors
-          console.warn(
-            `[calculateMarketTrends] Available liquidity mismatch for ${reserve.symbol}: ` +
-            `direct=${availableUSD}, calculated=${calculatedAvailable}, diff=${diff}`
+        try {
+          const reserves = await queryReservesAtBlock(
+            market.subgraphId,
+            poolEntityId,
+            blockNumber
           );
-        }
 
-        // Track per-asset snapshots
-        if (!assetSnapshots.has(normalizedAddress)) {
-          assetSnapshots.set(normalizedAddress, []);
-        }
-        assetSnapshots.get(normalizedAddress)!.push({
-          date: date.toISOString().split("T")[0],
-          suppliedUSD,
-          borrowedUSD,
-        });
-      }
+          let totalSuppliedUSD = 0;
+          let totalBorrowedUSD = 0;
+          let availableLiquidityUSD = 0;
 
-      // Ensure data consistency: availableLiquidity should equal totalSupplied - totalBorrowed
-      // Use calculated value to avoid rounding errors from summing individual reserves
-      const calculatedAvailableLiquidity = totalSuppliedUSD - totalBorrowedUSD;
-      
-      // Use the more accurate calculated value, but log if there's a significant difference
-      if (Math.abs(availableLiquidityUSD - calculatedAvailableLiquidity) > 100) {
-        console.warn(
-          `[calculateMarketTrends] Significant difference in available liquidity for ${date.toISOString()}: ` +
-          `summed=${availableLiquidityUSD}, calculated=${calculatedAvailableLiquidity}`
-        );
+          for (const reserve of reserves) {
+            const normalizedAddress = normalizeAddress(reserve.underlyingAsset);
+            const priceUSD = priceFromSubgraphToUSD(reserve.price.priceInEth, reserve.symbol, marketKey);
+            const decimals = reserve.decimals;
+
+            // Subgraph returns on-chain format, so use FromSubgraph functions
+            const suppliedUSD = calculateTotalSuppliedUSDFromSubgraph(
+              reserve.totalATokenSupply,
+              decimals,
+              priceUSD
+            );
+            const borrowedUSD = calculateTotalBorrowedUSDFromSubgraph(
+              reserve.totalCurrentVariableDebt,
+              decimals,
+              priceUSD
+            );
+            const availableUSD =
+              new BigNumber(reserve.availableLiquidity)
+                .div(new BigNumber(10).pow(decimals))
+                .times(priceUSD)
+                .toNumber();
+
+            totalSuppliedUSD += suppliedUSD;
+            totalBorrowedUSD += borrowedUSD;
+            availableLiquidityUSD += availableUSD;
+            
+            // Validate: totalSupplied should equal availableLiquidity + borrowed (with small tolerance for rounding)
+            const calculatedAvailable = suppliedUSD - borrowedUSD;
+            const diff = Math.abs(availableUSD - calculatedAvailable);
+            if (diff > 0.01) { // Allow 1 cent tolerance for rounding errors
+              console.warn(
+                `[calculateMarketTrends] Available liquidity mismatch for ${reserve.symbol}: ` +
+                `direct=${availableUSD}, calculated=${calculatedAvailable}, diff=${diff}`
+              );
+            }
+
+            // Track per-asset snapshots
+            if (!assetSnapshots.has(normalizedAddress)) {
+              assetSnapshots.set(normalizedAddress, []);
+            }
+            assetSnapshots.get(normalizedAddress)!.push({
+              date: date.toISOString().split("T")[0],
+              suppliedUSD,
+              borrowedUSD,
+            });
+          }
+
+          // Ensure data consistency: availableLiquidity should equal totalSupplied - totalBorrowed
+          // Use calculated value to avoid rounding errors from summing individual reserves
+          const calculatedAvailableLiquidity = totalSuppliedUSD - totalBorrowedUSD;
+          
+          // Use the more accurate calculated value, but log if there's a significant difference
+          if (Math.abs(availableLiquidityUSD - calculatedAvailableLiquidity) > 100) {
+            console.warn(
+              `[calculateMarketTrends] Significant difference in available liquidity for ${date.toISOString()}: ` +
+              `summed=${availableLiquidityUSD}, calculated=${calculatedAvailableLiquidity}`
+            );
+          }
+          
+          return {
+            date: date.toISOString().split("T")[0],
+            timestamp,
+            totalSuppliedUSD,
+            totalBorrowedUSD,
+            availableLiquidityUSD: calculatedAvailableLiquidity, // Use calculated value for consistency
+            index,
+          };
+        } catch (error) {
+          console.warn(`Failed to get snapshot for ${date.toISOString()}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Process batch results
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        dataPoints.push(result.value);
       }
-      
-      dataPoints.push({
-        date: date.toISOString().split("T")[0],
-        timestamp,
-        totalSuppliedUSD,
-        totalBorrowedUSD,
-        availableLiquidityUSD: calculatedAvailableLiquidity, // Use calculated value for consistency
-      });
-    } catch (error) {
-      console.warn(`Failed to get snapshot for ${date.toISOString()}:`, error);
-      // Continue with next date
+    }
+
+    // Show progress for long operations (1y = 365 days)
+    if (days >= 180 && batchStart % (CONCURRENT_REQUESTS * 10) === 0) {
+      const progress = Math.min(batchStart + CONCURRENT_REQUESTS, dates.length);
+      console.log(`  📊 Progress: ${progress}/${dates.length} days processed...`);
     }
   }
+
+  // Sort dataPoints by date to ensure chronological order
+  dataPoints.sort((a, b) => {
+    if (a.index !== undefined && b.index !== undefined) {
+      return a.index - b.index;
+    }
+    return a.date.localeCompare(b.date);
+  });
+
+  // Remove index from final data before using it
+  const finalDataPoints = dataPoints.map(({ index, ...rest }) => rest);
 
   // Calculate asset changes (1d, 7d, 30d)
   const assetChanges: AssetTrendsData[] = [];
@@ -204,7 +244,7 @@ export async function calculateMarketTrends(
     if (snapshots.length === 0) continue;
 
     const current = snapshots[snapshots.length - 1];
-    const priceUSD = priceFromSubgraphToUSD(reserve.price.priceInEth, reserve.symbol);
+    const priceUSD = priceFromSubgraphToUSD(reserve.price.priceInEth, reserve.symbol, marketKey);
     const decimals = reserve.decimals;
 
     // Subgraph returns on-chain format, so use FromSubgraph functions
@@ -272,17 +312,17 @@ export async function calculateMarketTrends(
   }
 
   // Calculate market totals changes
-  if (dataPoints.length === 0) {
+  if (finalDataPoints.length === 0) {
     throw new Error("No data points available");
   }
 
-  const currentTotal = dataPoints[dataPoints.length - 1];
+  const currentTotal = finalDataPoints[finalDataPoints.length - 1];
   const total1d =
-    dataPoints.length > 1 ? dataPoints[dataPoints.length - 2] : null;
+    finalDataPoints.length > 1 ? finalDataPoints[finalDataPoints.length - 2] : null;
   const total7d =
-    dataPoints.length > 7 ? dataPoints[dataPoints.length - 8] : null;
+    finalDataPoints.length > 7 ? finalDataPoints[finalDataPoints.length - 8] : null;
   const total30d =
-    dataPoints.length > 30 ? dataPoints[dataPoints.length - 31] : null;
+    finalDataPoints.length > 30 ? finalDataPoints[finalDataPoints.length - 31] : null;
 
   const calculateTotalChange = (
     old: MarketTrendsDataPoint | null
@@ -310,7 +350,7 @@ export async function calculateMarketTrends(
 
   return {
     marketKey,
-    data: dataPoints,
+    data: finalDataPoints,
     assetChanges,
     totals: {
       currentTotalSuppliedUSD: currentTotal.totalSuppliedUSD,

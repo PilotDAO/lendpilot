@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncAllAssetSnapshots } from "@/lib/workers/asset-snapshots-sync";
+import { AaveKitAssetProcessor } from "@/lib/processors/aavekit-asset-processor";
 
 /**
  * POST /api/cron/sync-asset-snapshots
  * 
  * Background job endpoint for syncing asset snapshots to database.
+ * 
+ * This endpoint:
+ * 1. For Ethereum V3: Uses Subgraph (existing logic)
+ * 2. For other markets: Processes AaveKit raw snapshots into AssetSnapshots
  * 
  * This endpoint should be called by:
  * - Vercel Cron (recommended for production)
@@ -28,6 +33,13 @@ export async function POST(request: NextRequest) {
 
   try {
     console.log('🔄 Starting asset snapshots sync via cron...');
+    
+    // Step 1: Process AaveKit snapshots for non-Ethereum markets
+    const aaveKitProcessor = new AaveKitAssetProcessor();
+    await aaveKitProcessor.processAllPending();
+    
+    // Step 2: Sync Ethereum V3 from Subgraph (existing logic)
+    // This will only process Ethereum V3, other markets are handled by AaveKit processor
     await syncAllAssetSnapshots(365);
     
     return NextResponse.json({

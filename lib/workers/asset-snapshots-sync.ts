@@ -86,7 +86,8 @@ export async function syncAssetSnapshots(
             // Calculate values
             const priceUSD = priceFromSubgraphToUSD(
               reserve.price.priceInEth,
-              reserve.symbol
+              reserve.symbol,
+              marketKey
             );
             const decimals = reserve.decimals;
 

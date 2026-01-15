@@ -3,6 +3,18 @@
     {
       "path": "/api/cron/sync-market-data",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/sync-daily-aavekit",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/sync-asset-snapshots",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-historical-aavekit",
+      "schedule": "0 3 * * 0"
     }
   ]
 }

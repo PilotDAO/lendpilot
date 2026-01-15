@@ -20,7 +20,7 @@ function formatUSD(value: number): string {
 
 export function StablecoinsTotals({ totals }: StablecoinsTotalsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div className="relative z-0 grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
           Total Supplied
