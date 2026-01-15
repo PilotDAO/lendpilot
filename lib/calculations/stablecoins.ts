@@ -61,6 +61,9 @@ export async function aggregateStablecoinsData(): Promise<
   // Group stablecoins by symbol/address (same stablecoin can be in multiple markets)
   const stablecoinMap = new Map<string, AggregatedStablecoinData>();
 
+  // Cache market reserves to avoid multiple DB queries for the same market
+  const marketReservesCache = new Map<string, Awaited<ReturnType<typeof getMarketReservesFromDB>>>();
+
   // For each stablecoin, fetch data from all its markets
   for (const stablecoin of stablecoins) {
     const normalizedAddress = normalizeAddress(stablecoin.address);
@@ -81,7 +84,7 @@ export async function aggregateStablecoinsData(): Promise<
 
     const aggregated = stablecoinMap.get(key)!;
 
-    // Fetch data from each market
+    // Fetch data from each market sequentially to avoid DB connection pool exhaustion
     for (const marketKey of stablecoin.markets) {
       const market = markets.find((m) => m.marketKey === marketKey);
       if (!market) {
@@ -92,7 +95,21 @@ export async function aggregateStablecoinsData(): Promise<
       try {
         // Fetch reserves from database (collected from AaveKit API via daily cron)
         // This avoids Cloudflare blocking and uses cached data
-        const reserves = await getMarketReservesFromDB(marketKey);
+        // Use cache to avoid multiple DB queries for the same market
+        let reserves = marketReservesCache.get(marketKey);
+        if (!reserves) {
+          try {
+            reserves = await getMarketReservesFromDB(marketKey);
+            marketReservesCache.set(marketKey, reserves);
+          } catch (dbError) {
+            // If market has no data in DB (e.g., ethereum-v3), skip it
+            if (dbError instanceof Error && dbError.message.includes('No data found')) {
+              console.warn(`⚠️  Market ${marketKey} has no data in DB, skipping for ${stablecoin.symbol}`);
+              continue;
+            }
+            throw dbError;
+          }
+        }
 
         // Find the stablecoin reserve
         const reserve = reserves.find(
@@ -141,10 +158,14 @@ export async function aggregateStablecoinsData(): Promise<
         aggregated.totalSuppliedUSD += totalSuppliedUSD;
         aggregated.totalBorrowedUSD += totalBorrowedUSD;
 
-        // Set metadata from first market
-        if (!aggregated.name) {
+        // Set metadata from first market that has data
+        if (!aggregated.name && reserve.name) {
           aggregated.name = reserve.name;
           aggregated.decimals = decimals;
+        }
+        // Always set imageUrl if available (from any market)
+        // This ensures we get the icon even if the first market doesn't have it
+        if (reserve.imageUrl) {
           aggregated.imageUrl = reserve.imageUrl;
         }
       } catch (error) {

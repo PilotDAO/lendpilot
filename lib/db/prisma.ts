@@ -23,7 +23,14 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not set. Please set it in .env.local');
 }
 
-const pool = new Pool({ connectionString });
+// Configure connection pool to handle more concurrent connections
+// Increased to 50 to handle parallel icon loading (49 icons on stablecoins page)
+const pool = new Pool({ 
+  connectionString,
+  max: 50, // Maximum number of clients in the pool (increased from 20)
+  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+});
 const adapter = new PrismaPg(pool);
 
 export const prisma =

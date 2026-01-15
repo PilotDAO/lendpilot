@@ -129,12 +129,25 @@ export async function getMarketReservesFromDB(marketKey: string): Promise<Reserv
 /**
  * Get single reserve from database (latest snapshot)
  * All markets now store current data from AaveKit API in DB
+ * 
+ * Uses caching to reduce DB load when multiple requests for the same reserve occur
  */
+// Cache for reserves (by marketKey + underlyingAsset)
+const reserveCache = new Map<string, { reserve: Reserve; timestamp: number }>();
+const RESERVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export async function getReserveFromDB(
   marketKey: string,
   underlyingAsset: string
 ): Promise<Reserve | null> {
   const normalizedAddress = normalizeAddress(underlyingAsset);
+  const cacheKey = `${marketKey}:${normalizedAddress}`;
+  
+  // Check cache first
+  const cached = reserveCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < RESERVE_CACHE_TTL_MS) {
+    return cached.reserve;
+  }
   
   // Get the latest snapshot from database
   const latestSnapshot = await prisma.aaveKitRawSnapshot.findFirst({
@@ -195,7 +208,7 @@ export async function getReserveFromDB(
     ? new BigNumber(reserve.currentVariableBorrowRate).toNumber()
     : 0;
 
-  return {
+  const result: Reserve = {
     underlyingAsset: normalizedAddress,
     symbol: reserve.symbol,
     name: reserve.name,
@@ -219,4 +232,12 @@ export async function getReserveFromDB(
     variableRateSlope2: reserve.variableRateSlope2,
     reserveFactor: reserve.reserveFactor,
   };
+
+  // Cache the result
+  reserveCache.set(cacheKey, {
+    reserve: result,
+    timestamp: Date.now(),
+  });
+
+  return result;
 }

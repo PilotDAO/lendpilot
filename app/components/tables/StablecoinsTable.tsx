@@ -89,6 +89,7 @@ const columns: ColumnDef<StablecoinRow>[] = [
               height={24}
               className="rounded-full"
               unoptimized
+              loading="lazy"
               onError={(e) => {
                 // Hide image if it fails to load
                 (e.target as HTMLImageElement).style.display = "none";
