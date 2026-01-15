@@ -263,6 +263,29 @@ export function StablecoinsTable({ data }: StablecoinsTableProps) {
 
   const [rows, setRows] = useState<StablecoinRow[]>(initialRows);
 
+  // Sync rows with initialRows when data changes
+  useEffect(() => {
+    setRows((prevRows) => {
+      // Create a map of existing rows by key to preserve APR data
+      const existingRowsMap = new Map<string, StablecoinRow>();
+      prevRows.forEach((row) => {
+        const key = `${row.marketKey}:${normalizeAddress(row.address)}`;
+        existingRowsMap.set(key, row);
+      });
+
+      // Merge initialRows with existing APR data
+      return initialRows.map((row) => {
+        const key = `${row.marketKey}:${normalizeAddress(row.address)}`;
+        const existing = existingRowsMap.get(key);
+        if (existing && (existing.apr30dSeries || existing.apr30dStats)) {
+          // Preserve APR data if it exists
+          return { ...row, apr30dSeries: existing.apr30dSeries, apr30dStats: existing.apr30dStats };
+        }
+        return row;
+      });
+    });
+  }, [initialRows]);
+
   // Load 30-day APR series for all stablecoin-market rows in one request (avoid N+1 / sequential waterfall)
   useEffect(() => {
     const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -324,15 +347,37 @@ export function StablecoinsTable({ data }: StablecoinsTableProps) {
     return () => controller.abort();
   }, [initialRows]);
 
-  // Get unique markets for filter
+  // Get unique markets for filter with formatted names
   const uniqueMarkets = useMemo(() => {
-    const markets = new Set<string>();
+    const marketMap = new Map<string, string>();
     data.forEach((stablecoin) => {
       stablecoin.markets.forEach((market) => {
-        markets.add(market.marketKey);
+        if (!marketMap.has(market.marketKey)) {
+          // Format market name: remove "Aave", move "V3" to end with space
+          let formattedMarketName = market.marketName
+            .replace(/^Aave\s*/i, "") // Remove Aave from start
+            .replace(/\s*Aave\s*/i, " ") // Remove Aave from middle
+            .trim();
+          
+          // Remove V3 from anywhere
+          const hasV3 = /V3/i.test(formattedMarketName);
+          formattedMarketName = formattedMarketName
+            .replace(/\s*V3\s*/i, "") // Remove V3 from anywhere
+            .trim();
+          
+          // Add spaces before capital letters (camelCase to Words)
+          formattedMarketName = formattedMarketName.replace(/([a-z])([A-Z])/g, "$1 $2");
+          
+          // Add V3 at the end if it was present or if marketKey suggests V3
+          if (hasV3 || market.marketKey.includes("-v3")) {
+            formattedMarketName = formattedMarketName + " V3";
+          }
+          
+          marketMap.set(market.marketKey, formattedMarketName);
+        }
       });
     });
-    return Array.from(markets).sort();
+    return Array.from(marketMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [data]);
 
   // Filter rows before passing to table
@@ -368,9 +413,9 @@ export function StablecoinsTable({ data }: StablecoinsTableProps) {
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         >
           <option value="all">All Markets</option>
-          {uniqueMarkets.map((marketKey) => (
+          {uniqueMarkets.map(([marketKey, formattedName]) => (
             <option key={marketKey} value={marketKey}>
-              {marketKey}
+              {formattedName}
             </option>
           ))}
         </select>

@@ -18,7 +18,7 @@
 
 1. Перейдите в Settings → Environment Variables
 2. Добавьте переменные:
-   - `GRAPH_API_KEY` = `d553ff02ebe18bd8c4a58408666f126c`
+   - `GRAPH_API_KEY` = `14c01f15b23ae5f1b9c3b5639927ef78`
    - `AAVE_SUBGRAPH_ID` = `Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g` (опционально, есть дефолт)
    - `ETH_RPC_URLS` = `https://eth.drpc.org,https://eth.llamarpc.com,https://rpc.ankr.com/eth,https://ethereum-rpc.publicnode.com` (опционально, есть дефолт)
 
@@ -28,7 +28,7 @@
 
 ```bash
 # Railway
-railway variables set GRAPH_API_KEY=d553ff02ebe18bd8c4a58408666f126c
+railway variables set GRAPH_API_KEY=14c01f15b23ae5f1b9c3b5639927ef78
 
 # Render
 # Через Dashboard → Environment → Add Environment Variable
@@ -40,7 +40,7 @@ railway variables set GRAPH_API_KEY=d553ff02ebe18bd8c4a58408666f126c
 
 ```yaml
 environment:
-  - GRAPH_API_KEY=d553ff02ebe18bd8c4a58408666f126c
+  - GRAPH_API_KEY=14c01f15b23ae5f1b9c3b5639927ef78
   - AAVE_SUBGRAPH_ID=Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g
 ```
 
